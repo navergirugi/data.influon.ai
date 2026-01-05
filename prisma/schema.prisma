@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Platform {
+  INSTAGRAM
+  YOUTUBE
+  BLOG
+  TIKTOK
+  TWITTER
+  FACEBOOK
+  OTHER
+}
+
+enum CampaignStatus {
+  IN_PROGRESS
+  RECRUITING
+  REVIEWING
+  ENDED
+  UPCOMING
+  TODAY_OPEN
+  OPEN_SOON
+  CLOSING_SOON
+}
+
+enum ApplicationStatus {
+  APPLYING
+  SELECTED
+  NOT_SELECTED
+  CANCELED
+}
+
+enum VisitStatus {
+  VISIT_PENDING
+  VISIT_COMPLETED
+  VISIT_NOT_COMPLETED
+}
+
+enum ReviewStatus {
+  REVIEW_PENDING
+  REVIEW_COMPLETED
+}
+
+enum PointType {
+  EARN
+  WITHDRAW
+  PENDING
+}
+
+enum PointStatus {
+  PROCESSING
+  COMPLETED
+  CANCELED
+}
+
+enum PenaltyType {
+  APPLIED
+  RELEASED
+}
+
+enum InquiryType {
+  POINT
+  CAMPAIGN
+  ACCOUNT
+  OTHER
+}
+
+enum InquiryStatus {
+  PENDING
+  COMPLETED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String?   // Nullable for social login users
+  name         String
+  nickname     String    @unique
+  profileImage String?
+  location     String?
+  birthYear    String?
+  gender       Gender?
+  phone        String?
+  points       Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime? // Soft delete
+
+  socialConnections SocialConnection[]
+  applications      CampaignApplication[]
+  pointTransactions PointTransaction[]
+  penalties         Penalty[]
+  favorites         Favorite[]
+  inquiries         Inquiry[]
+  notifications     Notification[]
+}
+
+model SocialConnection {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  platform    Platform
+  providerId  String
+  accessToken String?
+  isConnected Boolean  @default(true)
+  url         String?
+
+  @@unique([userId, platform])
+}
+
+model Campaign {
+  id                Int            @id @default(autoincrement())
+  title             String
+  subTitle          String?
+  shopName          String
+  image             String
+  platform          Platform
+  category          String
+  status            CampaignStatus
+  period            String
+  announcementDate  DateTime
+  reviewDeadline    DateTime
+  hasVideo          Boolean        @default(false)
+  keywords          String[]
+
+  // Detail fields
+  serviceDetail     String?        @db.Text
+  missionGuide      String?        @db.Text
+  notice            String?        @db.Text
+  companionCount    String?
+  reviewMaintenance String?
+  sponsoredTag      String?
+  address           String?
+  lat               Float?
+  lng               Float?
+  offDays           String?
+  breakTime         String?
+  availableTime     String?
+  blogUrl           String?
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  applications      CampaignApplication[]
+  penalties         Penalty[]
+  favorites         Favorite[]
+}
+
+model CampaignApplication {
+  id                Int               @id @default(autoincrement())
+  campaignId        Int
+  campaign          Campaign          @relation(fields: [campaignId], references: [id])
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+
+  status            ApplicationStatus @default(APPLYING)
+  participationType String?           // '무상리뷰' | '유상리뷰'
+  rewardPoint       Int               @default(0)
+
+  visitDate         DateTime?
+  visitTime         String?
+  companionCount    Int               @default(0)
+
+  reviewUrl         String?
+  reviewStatus      ReviewStatus      @default(REVIEW_PENDING)
+  visitStatus       VisitStatus       @default(VISIT_PENDING)
+
+  resultStatus      String?           // '선정', '미선정' text for display if needed
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([campaignId, userId])
+}
+
+model PointTransaction {
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id])
+  type         PointType
+  amount       Int
+  status       PointStatus
+  description  String?
+  createdAt    DateTime    @default(now())
+}
+
+model Penalty {
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id])
+  type         PenaltyType
+  reason       String
+  appliedAt    DateTime    @default(now())
+  releasedAt   DateTime?
+  campaignId   Int?
+  campaign     Campaign?   @relation(fields: [campaignId], references: [id])
+}
+
+model Favorite {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  campaignId Int
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@id([userId, campaignId])
+}
+
+model Inquiry {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  title         String
+  content       String        @db.Text
+  type          InquiryType
+  status        InquiryStatus @default(PENDING)
+  answerContent String?       @db.Text
+  answeredAt    DateTime?
+  createdAt     DateTime      @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
