@@ -1,0 +1,72 @@
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+}
+
+export enum Platform {
+  INSTAGRAM = 'INSTAGRAM',
+  YOUTUBE = 'YOUTUBE',
+  BLOG = 'BLOG',
+  TIKTOK = 'TIKTOK',
+  TWITTER = 'TWITTER',
+  FACEBOOK = 'FACEBOOK',
+  OTHER = 'OTHER',
+}
+
+export enum CampaignStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  RECRUITING = 'RECRUITING',
+  REVIEWING = 'REVIEWING',
+  ENDED = 'ENDED',
+  UPCOMING = 'UPCOMING',
+  TODAY_OPEN = 'TODAY_OPEN',
+  OPEN_SOON = 'OPEN_SOON',
+  CLOSING_SOON = 'CLOSING_SOON',
+}
+
+export enum ApplicationStatus {
+  APPLYING = 'APPLYING',
+  SELECTED = 'SELECTED',
+  NOT_SELECTED = 'NOT_SELECTED',
+  CANCELED = 'CANCELED',
+}
+
+export enum VisitStatus {
+  VISIT_PENDING = 'VISIT_PENDING',
+  VISIT_COMPLETED = 'VISIT_COMPLETED',
+  VISIT_NOT_COMPLETED = 'VISIT_NOT_COMPLETED',
+}
+
+export enum ReviewStatus {
+  REVIEW_PENDING = 'REVIEW_PENDING',
+  REVIEW_COMPLETED = 'REVIEW_COMPLETED',
+}
+
+export enum PointType {
+  EARN = 'EARN',
+  WITHDRAW = 'WITHDRAW',
+  PENDING = 'PENDING',
+}
+
+export enum PointStatus {
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  CANCELED = 'CANCELED',
+}
+
+export enum PenaltyType {
+  APPLIED = 'APPLIED',
+  RELEASED = 'RELEASED',
+}
+
+export enum InquiryType {
+  POINT = 'POINT',
+  CAMPAIGN = 'CAMPAIGN',
+  ACCOUNT = 'ACCOUNT',
+  OTHER = 'OTHER',
+}
+
+export enum InquiryStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+}

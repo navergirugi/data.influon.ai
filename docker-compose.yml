@@ -3,21 +3,27 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: influon
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: influon_db
+      - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./docker_data/postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
-      - redis_data:/data
-
-volumes:
-  postgres_data:
-  redis_data:
+      - ./docker_data/redis_data:/data
+    env_file:
+      - .env.local
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
