@@ -3,6 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as Joi from 'joi';
 import { typeOrmConfig } from './config/typeorm.config';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { MyPageModule } from './mypage/mypage.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -30,9 +33,10 @@ import { typeOrmConfig } from './config/typeorm.config';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => typeOrmConfig(configService),
     }),
-    // AuthModule,   // To be implemented
+    CampaignsModule,
+    MyPageModule,
+    AuthModule,
     // UsersModule,  // To be implemented
-    // CampaignsModule, // To be implemented
   ],
   controllers: [],
   providers: [],
