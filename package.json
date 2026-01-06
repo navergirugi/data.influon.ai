@@ -6,23 +6,34 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "// --- 빌드 및 포맷팅 ---": "",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+
+    "// --- 로컬 Docker 관리 (DB/Redis) ---": "",
     "docker:up": "docker-compose --env-file .env.local up -d --wait",
     "docker:down": "docker-compose --env-file .env.local down",
     "docker:restart": "docker-compose --env-file .env.local down && docker-compose --env-file .env.local up -d --wait",
+
+    "// --- 애플리케이션 실행 ---": "",
     "start": "nest start",
     "start:local": "cross-env NODE_ENV=local npm run docker:restart && cross-env NODE_ENV=local nest start --watch",
     "start:dev": "cross-env NODE_ENV=development nest start --watch",
     "start:debug": "cross-env NODE_ENV=local nest start --debug --watch",
     "start:prod": "cross-env NODE_ENV=production node dist/main",
+
+    "// --- 데이터베이스 초기화 (Seeding) ---": "",
     "seed:local": "cross-env NODE_ENV=local ts-node -r tsconfig-paths/register src/seed.ts",
+
+    "// --- 린트 및 테스트 ---": "",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+
+    "// --- TypeORM 마이그레이션 ---": "",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "migration:generate": "npm run typeorm -- migration:generate -d src/config/typeorm.config.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/config/typeorm.config.ts",

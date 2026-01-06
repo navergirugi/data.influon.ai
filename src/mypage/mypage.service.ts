@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { PointTransaction } from '../entities/point-transaction.entity';
 import { PointType, PointStatus } from '../entities/enums';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { WithdrawPointDto } from './dto/withdraw-point.dto';
 
 @Injectable()
 export class MyPageService {
@@ -56,7 +58,7 @@ export class MyPageService {
     };
   }
 
-  async updateProfile(userId: string, body: any) {
+  async updateProfile(userId: string, body: UpdateProfileDto) {
     // Implement update logic
     return {
       success: true,
@@ -76,7 +78,7 @@ export class MyPageService {
     };
   }
 
-  async withdrawPoint(userId: string, body: any) {
+  async withdrawPoint(userId: string, body: WithdrawPointDto) {
     // Implement withdrawal logic
     // 1. Check balance
     // 2. Create transaction (PENDING)

@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
+import { SignInDto } from './dto/signin.dto';
+import { SignUpDto } from './dto/signup.dto';
+import { FindAccountDto } from './dto/find-account.dto';
 
 @Injectable()
 export class AuthService {
@@ -12,7 +15,7 @@ export class AuthService {
     // private jwtService: JwtService, // Need to import JwtModule in AuthModule
   ) {}
 
-  async signin(body: any) {
+  async signin(body: SignInDto) {
     const { email, password } = body;
     const user = await this.userRepository.findOne({ where: { email } });
 
@@ -38,7 +41,7 @@ export class AuthService {
     };
   }
 
-  async signup(body: any) {
+  async signup(body: SignUpDto) {
     const { email, password, name, nickname, phone } = body;
 
     const existingUser = await this.userRepository.findOne({ where: [{ email }, { nickname }] });
@@ -62,7 +65,7 @@ export class AuthService {
     };
   }
 
-  async findAccount(body: any) {
+  async findAccount(body: FindAccountDto) {
     // Mock implementation
     return {
       success: true,

@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Campaign } from '../entities/campaign.entity';
 import { CampaignApplication } from '../entities/campaign-application.entity';
 import { CampaignStatus, ApplicationStatus } from '../entities/enums';
+import { SearchCampaignDto } from './dto/search-campaign.dto';
+import { CreateApplicationDto } from './dto/create-application.dto';
 
 @Injectable()
 export class CampaignsService {
@@ -39,16 +41,30 @@ export class CampaignsService {
     };
   }
 
-  async search(query: any) {
+  async search(query: SearchCampaignDto) {
     // Basic search implementation
     const qb = this.campaignRepository.createQueryBuilder('campaign');
 
-    if (query.category) {
+    if (query.category && query.category !== '전체') {
       qb.andWhere('campaign.category = :category', { category: query.category });
     }
     
-    if (query.platform) {
-        qb.andWhere('campaign.platform = :platform', { platform: query.platform });
+    if (query.channel && query.channel !== '전체') {
+        qb.andWhere('campaign.platform = :platform', { platform: query.channel });
+    }
+
+    if (query.status && query.status !== '전체') {
+        qb.andWhere('campaign.status = :status', { status: query.status });
+    }
+
+    // TODO: Implement city/district filter logic (requires DB schema support for address parsing or separate columns)
+    // if (query.city) { ... }
+
+    // TODO: Implement sorting
+    if (query.sort === '최신순') {
+        qb.orderBy('campaign.createdAt', 'DESC');
+    } else if (query.sort === '마감임박순') {
+        qb.orderBy('campaign.reviewDeadline', 'ASC');
     }
 
     const campaigns = await qb.getMany();
@@ -85,7 +101,7 @@ export class CampaignsService {
     };
   }
 
-  async apply(body: any) {
+  async apply(body: CreateApplicationDto) {
     // body: { campaignId, participationType, rewardPoint, visitDateTime, agreedTerms }
     // TODO: Get userId from JWT (AuthGuard)
     // For now, using a dummy user ID or creating a dummy application
