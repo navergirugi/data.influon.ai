@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, ConflictException, NotFoundException
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
+import { DeviceToken, DeviceType } from '../entities/device-token.entity';
 import { JwtService } from '@nestjs/jwt';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
@@ -12,15 +13,22 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(DeviceToken)
+    private deviceTokenRepository: Repository<DeviceToken>,
     // private jwtService: JwtService, // Need to import JwtModule in AuthModule
   ) {}
 
   async signin(body: SignInDto) {
-    const { email, password } = body;
+    const { email, password, deviceToken, deviceType } = body;
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user || user.password !== password) { // TODO: Use bcrypt for password comparison
       throw new UnauthorizedException('이메일 또는 비밀번호가 일치하지 않습니다.');
+    }
+
+    // Handle Device Token
+    if (deviceToken && deviceType) {
+      await this.saveDeviceToken(user, deviceToken, deviceType);
     }
 
     // const payload = { sub: user.id, email: user.email };
@@ -42,7 +50,7 @@ export class AuthService {
   }
 
   async signup(body: SignUpDto) {
-    const { email, password, name, nickname, phone } = body;
+    const { email, password, name, nickname, phone, deviceToken, deviceType } = body;
 
     const existingUser = await this.userRepository.findOne({ where: [{ email }, { nickname }] });
     if (existingUser) {
@@ -57,12 +65,36 @@ export class AuthService {
         phone,
     });
 
-    await this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
+
+    // Handle Device Token
+    if (deviceToken && deviceType) {
+      await this.saveDeviceToken(savedUser, deviceToken, deviceType);
+    }
 
     return {
       success: true,
       message: '회원가입이 완료되었습니다.',
     };
+  }
+
+  private async saveDeviceToken(user: User, token: string, type: DeviceType) {
+    // Check if token already exists
+    let deviceToken = await this.deviceTokenRepository.findOne({ where: { token } });
+
+    if (deviceToken) {
+      // Update user if token exists (e.g. user logged in on same device with different account, or re-login)
+      deviceToken.user = user;
+      deviceToken.deviceType = type; // Update type just in case
+    } else {
+      // Create new token
+      deviceToken = this.deviceTokenRepository.create({
+        token,
+        deviceType: type,
+        user,
+      });
+    }
+    await this.deviceTokenRepository.save(deviceToken);
   }
 
   async findAccount(body: FindAccountDto) {

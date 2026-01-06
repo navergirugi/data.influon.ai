@@ -6,6 +6,7 @@ import { Penalty } from './penalty.entity';
 import { Favorite } from './favorite.entity';
 import { Inquiry } from './inquiry.entity';
 import { Notification } from './notification.entity';
+import { DeviceToken } from './device-token.entity';
 import { Gender } from './enums';
 
 @Entity()
@@ -72,4 +73,7 @@ export class User {
 
   @OneToMany(() => Notification, (noti) => noti.user)
   notifications: Notification[];
+
+  @OneToMany(() => DeviceToken, (token) => token.user)
+  deviceTokens: DeviceToken[];
 }
