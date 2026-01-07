@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne } from 'typeorm';
 import { CampaignApplication } from './campaign-application.entity';
 import { Penalty } from './penalty.entity';
 import { Favorite } from './favorite.entity';
 import { Platform, CampaignStatus } from './enums';
+import { User } from './user.entity';
 
 @Entity()
 export class Campaign {
@@ -27,8 +28,11 @@ export class Campaign {
   @Column()
   category: string;
 
-  @Column({ type: 'enum', enum: CampaignStatus, enumName: 'campaign_status_enum' })
+  @Column({ type: 'enum', enum: CampaignStatus, default: CampaignStatus.PENDING_APPROVAL })
   status: CampaignStatus;
+
+  @Column({ nullable: true })
+  rejectionReason?: string;
 
   @Column()
   period: string;
@@ -84,6 +88,12 @@ export class Campaign {
 
   @Column({ nullable: true })
   blogUrl?: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  advertiser: User;
+
+  @ManyToOne(() => User, { nullable: true })
+  createdByAdmin?: User;
 
   @CreateDateColumn()
   createdAt: Date;

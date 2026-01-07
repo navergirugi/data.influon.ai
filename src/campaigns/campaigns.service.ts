@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Campaign } from '../entities/campaign.entity';
@@ -6,6 +6,9 @@ import { CampaignApplication } from '../entities/campaign-application.entity';
 import { CampaignStatus, ApplicationStatus } from '../entities/enums';
 import { SearchCampaignDto } from './dto/search-campaign.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
+import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { User } from '../entities/user.entity';
 
 @Injectable()
 export class CampaignsService {
@@ -15,6 +18,56 @@ export class CampaignsService {
     @InjectRepository(CampaignApplication)
     private applicationRepository: Repository<CampaignApplication>,
   ) {}
+
+  async create(
+    dto: CreateCampaignDto,
+    advertiser: User,
+    createdByAdmin?: User,
+    autoApprove: boolean = false,
+  ): Promise<Campaign> {
+    const campaign = this.campaignRepository.create({
+      ...dto,
+      advertiser,
+      createdByAdmin,
+      status: autoApprove ? CampaignStatus.RECRUITING : CampaignStatus.PENDING_APPROVAL,
+    });
+
+    return this.campaignRepository.save(campaign);
+  }
+
+  async getPending(): Promise<Campaign[]> {
+    return this.campaignRepository.find({
+      where: { status: CampaignStatus.PENDING_APPROVAL },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async updateStatus(id: number, updateDto: UpdateCampaignStatusDto): Promise<Campaign> {
+    const campaign = await this.campaignRepository.findOne({ where: { id } });
+
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID "${id}" not found`);
+    }
+
+    const { status, rejectionReason } = updateDto;
+
+    if (status === CampaignStatus.REJECTED && !rejectionReason) {
+      throw new BadRequestException('Rejection reason is required when rejecting a campaign.');
+    }
+
+    campaign.status = status;
+    if (status === CampaignStatus.REJECTED) {
+      campaign.rejectionReason = rejectionReason;
+    } else {
+      campaign.rejectionReason = null;
+    }
+    
+    if (status === CampaignStatus.APPROVED) {
+      campaign.status = CampaignStatus.RECRUITING;
+    }
+
+    return this.campaignRepository.save(campaign);
+  }
 
   async getMainList() {
     // TODO: Implement actual logic for "Today Open" and "Nearby"

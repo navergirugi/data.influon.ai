@@ -4,7 +4,8 @@ import { Campaign } from '../../entities/campaign.entity';
 import { CampaignApplication } from '../../entities/campaign-application.entity';
 import { PointTransaction } from '../../entities/point-transaction.entity';
 import { SocialConnection } from '../../entities/social-connection.entity';
-import { Gender, Platform, CampaignStatus, ApplicationStatus, VisitStatus, ReviewStatus, PointType, PointStatus } from '../../entities/enums';
+import { Gender, Platform, CampaignStatus, ApplicationStatus, VisitStatus, ReviewStatus, PointType, PointStatus, UserRole } from '../../entities/enums';
+import * as bcrypt from 'bcrypt';
 
 export const seedDatabase = async (dataSource: DataSource) => {
   const userRepository = dataSource.getRepository(User);
@@ -12,6 +13,24 @@ export const seedDatabase = async (dataSource: DataSource) => {
   const applicationRepository = dataSource.getRepository(CampaignApplication);
   const pointTransactionRepository = dataSource.getRepository(PointTransaction);
   const socialConnectionRepository = dataSource.getRepository(SocialConnection);
+
+  // 0. Create Admin User
+  const adminEmail = 'admin@influon.com';
+  let adminUser = await userRepository.findOne({ where: { email: adminEmail } });
+  if (!adminUser) {
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash('admin1234', salt);
+    adminUser = userRepository.create({
+      email: adminEmail,
+      password: hashedPassword,
+      name: '관리자',
+      nickname: 'influon_admin',
+      role: UserRole.ADMIN,
+    });
+    await userRepository.save(adminUser);
+    console.log('Admin user created!');
+  }
+
 
   // 1. Create User
   let user = await userRepository.findOne({ where: { email: 'influon@example.com' } });
@@ -26,6 +45,7 @@ export const seedDatabase = async (dataSource: DataSource) => {
       gender: Gender.FEMALE,
       phone: '010-1234-5678',
       points: 150000,
+      role: UserRole.INFLUENCER,
     });
     await userRepository.save(user);
 

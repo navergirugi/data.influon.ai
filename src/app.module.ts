@@ -6,6 +6,8 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { CampaignsModule } from './campaigns/campaigns.module';
 import { MyPageModule } from './mypage/mypage.module';
 import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -36,7 +38,8 @@ import { AuthModule } from './auth/auth.module';
     CampaignsModule,
     MyPageModule,
     AuthModule,
-    // UsersModule,  // To be implemented
+    AdminModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [],

@@ -1,0 +1,179 @@
+import { Controller, Patch, Param, Body, UseGuards, ParseUUIDPipe, Get, ParseIntPipe, Post, Query, Delete } from '@nestjs/common';
+import { AdminService } from './admin.service';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { UserRole, UserStatus } from '../entities/enums';
+import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
+import { AdminAuthGuard } from './auth/admin-auth.guard';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateCampaignStatusDto } from '../campaigns/dto/update-campaign-status.dto';
+import { ProcessWithdrawalDto } from './dto/process-withdrawal.dto';
+import { User } from '../entities/user.entity';
+import { AdjustPointsDto } from './dto/adjust-points.dto';
+import { CreateAdminDto } from './dto/create-admin.dto';
+import { CreateUserManualDto } from './dto/create-user-manual.dto';
+import { UpdateUserInfoManualDto } from './dto/update-user-info-manual.dto';
+import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
+import { CurrentAdmin } from './auth/current-admin.decorator';
+import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
+
+@Controller('admin')
+@UseGuards(AdminAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+export class AdminController {
+  constructor(private readonly adminService: AdminService) {}
+
+  // --- Admin Management (Super Admin Only) ---
+  @Post('admins')
+  @Roles(UserRole.SUPER_ADMIN)
+  createAdmin(@Body() dto: CreateAdminDto) {
+    return this.adminService.createAdmin(dto);
+  }
+
+  @Get('admins')
+  @Roles(UserRole.SUPER_ADMIN)
+  getAdmins() {
+    return this.adminService.getAdmins();
+  }
+
+  @Delete('admins/:id')
+  @Roles(UserRole.SUPER_ADMIN)
+  deleteAdmin(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.deleteAdmin(id);
+  }
+
+  @Patch('admins/:id/role')
+  @Roles(UserRole.SUPER_ADMIN)
+  updateAdminRole(@Param('id', ParseUUIDPipe) id: string, @Body('role') role: UserRole) {
+    return this.adminService.updateAdminRole(id, role);
+  }
+
+  // --- User Management (Manual) ---
+  @Post('users/manual')
+  createUserManual(@CurrentAdmin() admin: User, @Body() dto: CreateUserManualDto) {
+    return this.adminService.createUserManual(dto, admin);
+  }
+
+  @Patch('users/:id/info')
+  updateUserInfoManual(
+    @CurrentAdmin() admin: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserInfoManualDto,
+  ) {
+    return this.adminService.updateUserInfoManual(id, dto, admin);
+  }
+
+  @Patch('users/:id/status-history')
+  updateUserStatusWithHistory(
+    @CurrentAdmin() admin: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('status') status: UserStatus,
+    @Body('reason') reason: string,
+  ) {
+    return this.adminService.updateUserStatusWithHistory(id, status, reason, admin);
+  }
+
+  // --- Admin Notes ---
+  @Post('users/:id/notes')
+  createAdminNote(
+    @CurrentAdmin() admin: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateAdminNoteDto,
+  ) {
+    return this.adminService.createAdminNote(id, dto, admin);
+  }
+
+  @Get('users/:id/notes')
+  getAdminNotes(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getAdminNotes(id);
+  }
+
+  // --- Dashboard & Stats ---
+  @Get('dashboard/summary')
+  getDashboardSummary() {
+    return this.adminService.getDashboardSummary();
+  }
+
+  @Get('dashboard/revenue')
+  getRevenueStats(@Query('period') period: 'daily' | 'weekly' | 'monthly' = 'monthly') {
+    return this.adminService.getRevenueStats(period);
+  }
+
+  @Get('dashboard/ranking/campaigns')
+  getPopularCampaigns() {
+    return this.adminService.getPopularCampaigns();
+  }
+
+  @Get('dashboard/ranking/influencers')
+  getTopInfluencers() {
+    return this.adminService.getTopInfluencers();
+  }
+
+  @Get('stats')
+  getStats() {
+    return this.adminService.getStats();
+  }
+
+  // --- Points & Withdrawals ---
+  @Post('users/:id/points/adjust')
+  adjustPoints(
+    @CurrentAdmin() adminUser: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdjustPointsDto,
+  ) {
+    return this.adminService.adjustPoints(adminUser, id, dto);
+  }
+
+  @Get('points/withdrawals')
+  getWithdrawalRequests() {
+    return this.adminService.getWithdrawalRequests();
+  }
+
+  @Patch('points/withdrawals/:id')
+  processWithdrawal(
+    @CurrentAdmin() adminUser: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ProcessWithdrawalDto,
+  ) {
+    return this.adminService.processWithdrawal(adminUser, id, dto);
+  }
+
+  // --- Campaign Management ---
+  @Post('campaigns/create-by-admin')
+  createCampaignByAdmin(
+    @CurrentAdmin() adminUser: User,
+    @Body() dto: CreateCampaignByAdminDto,
+  ) {
+    return this.adminService.createCampaignByAdmin(dto, adminUser);
+  }
+
+  @Get('campaigns/pending')
+  getPendingCampaigns() {
+    return this.adminService.getPendingCampaigns();
+  }
+
+  @Patch('campaigns/:id/status')
+  updateCampaignStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateCampaignStatusDto,
+  ) {
+    return this.adminService.updateCampaignStatus(id, updateDto);
+  }
+
+  // --- Legacy User Management ---
+  @Patch('users/:id/business-status')
+  updateBusinessStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateBusinessStatusDto,
+  ) {
+    return this.adminService.updateBusinessStatus(id, updateDto);
+  }
+
+  @Patch('users/:id/status')
+  updateUserStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateUserStatusDto,
+  ) {
+    return this.adminService.updateUserStatus(id, updateDto);
+  }
+}

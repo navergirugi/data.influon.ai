@@ -7,7 +7,7 @@ import { Favorite } from './favorite.entity';
 import { Inquiry } from './inquiry.entity';
 import { Notification } from './notification.entity';
 import { DeviceToken } from './device-token.entity';
-import { Gender } from './enums';
+import { Gender, UserRole, BusinessStatus, UserStatus } from './enums';
 
 @Entity()
 export class User {
@@ -26,6 +26,9 @@ export class User {
   @Column({ unique: true })
   nickname: string;
 
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.INFLUENCER })
+  role: UserRole;
+
   @Column({ nullable: true })
   profileImage?: string;
 
@@ -43,6 +46,29 @@ export class User {
 
   @Column({ default: 0 })
   points: number;
+
+  // Advertiser specific fields
+  @Column({ nullable: true })
+  businessName?: string;
+
+  @Column({ nullable: true })
+  businessNumber?: string;
+
+  @Column({ nullable: true })
+  businessRegistration?: string; // URL or path to the registration file
+
+  @Column({ type: 'enum', enum: BusinessStatus, nullable: true, default: BusinessStatus.PENDING })
+  businessStatus?: BusinessStatus;
+
+  @Column({ nullable: true })
+  rejectionReason?: string;
+
+  // User status
+  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  status: UserStatus;
+
+  @Column({ nullable: true })
+  lastLoginAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;
