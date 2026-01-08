@@ -8,6 +8,7 @@ import { MyPageModule } from './mypage/mypage.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     AdminModule,
     UsersModule,
+    WalletModule,
   ],
   controllers: [],
   providers: [],

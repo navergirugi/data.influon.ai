@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany, OneToOne } from 'typeorm';
 import { SocialConnection } from './social-connection.entity';
 import { CampaignApplication } from './campaign-application.entity';
 import { PointTransaction } from './point-transaction.entity';
@@ -8,6 +8,7 @@ import { Inquiry } from './inquiry.entity';
 import { Notification } from './notification.entity';
 import { DeviceToken } from './device-token.entity';
 import { Gender, UserRole, BusinessStatus, UserStatus } from './enums';
+import { Wallet } from './wallet.entity';
 
 @Entity()
 export class User {
@@ -69,6 +70,9 @@ export class User {
 
   @Column({ nullable: true })
   lastLoginAt?: Date;
+
+  @OneToOne(() => Wallet, (wallet) => wallet.user)
+  wallet: Wallet;
 
   @CreateDateColumn()
   createdAt: Date;

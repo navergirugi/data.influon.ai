@@ -127,3 +127,13 @@ export enum AdminActionType {
   DELETE_ADMIN = 'DELETE_ADMIN',
   UPDATE_ADMIN_ROLE = 'UPDATE_ADMIN_ROLE',
 }
+
+export enum TransactionType {
+  DEPOSIT = 'DEPOSIT', // Cash charge
+  CAMPAIGN_LOCK = 'CAMPAIGN_LOCK', // Escrow for campaign
+  CAMPAIGN_PAYOUT = 'CAMPAIGN_PAYOUT', // Point payout to influencer
+  WITHDRAWAL_REQUEST = 'WITHDRAWAL_REQUEST', // Point withdrawal request
+  WITHDRAWAL_COMPLETED = 'WITHDRAWAL_COMPLETED', // Withdrawal done
+  WITHDRAWAL_REJECTED = 'WITHDRAWAL_REJECTED', // Withdrawal rejected (refund)
+  ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT', // Admin manual adjustment
+}

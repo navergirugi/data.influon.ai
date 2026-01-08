@@ -9,6 +9,7 @@ import { CreateUserManualDto } from '../admin/dto/create-user-manual.dto';
 import * as bcrypt from 'bcrypt';
 import { UpdateUserInfoManualDto } from '../admin/dto/update-user-info-manual.dto';
 import { UserStatusHistory } from '../entities/user-status-history.entity';
+import { Wallet } from '../entities/wallet.entity';
 
 @Injectable()
 export class UsersService {
@@ -17,28 +18,36 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserStatusHistory)
     private readonly userStatusHistoryRepository: Repository<UserStatusHistory>,
+    @InjectRepository(Wallet)
+    private readonly walletRepository: Repository<Wallet>,
     private dataSource: DataSource,
   ) {}
 
   async createUserManual(dto: CreateUserManualDto): Promise<User> {
-    const { email, password, ...rest } = dto;
+    return this.dataSource.transaction(async (manager) => {
+      const { email, password, ...rest } = dto;
 
-    const existingUser = await this.userRepository.findOne({ where: [{ email }, { nickname: rest.nickname }] });
-    if (existingUser) {
-      throw new ConflictException('Email or nickname already exists.');
-    }
+      const existingUser = await manager.findOne(User, { where: [{ email }, { nickname: rest.nickname }] });
+      if (existingUser) {
+        throw new ConflictException('Email or nickname already exists.');
+      }
 
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(password, salt);
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = this.userRepository.create({
-      email,
-      password: hashedPassword,
-      ...rest,
-      status: UserStatus.ACTIVE,
+      const user = manager.create(User, {
+        email,
+        password: hashedPassword,
+        ...rest,
+        status: UserStatus.ACTIVE,
+      });
+      const savedUser = await manager.save(user);
+
+      const wallet = manager.create(Wallet, { user: savedUser });
+      await manager.save(wallet);
+
+      return savedUser;
     });
-
-    return this.userRepository.save(user);
   }
 
   async updateUserInfoManual(userId: string, dto: UpdateUserInfoManualDto): Promise<User> {

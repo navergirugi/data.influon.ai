@@ -1,8 +1,11 @@
-import { IsInt, IsNotEmpty, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsEnum } from 'class-validator';
 
 export class AdjustPointsDto {
   @IsInt()
-  amount: number; // Positive for adding, negative for subtracting
+  amount: number;
+
+  @IsEnum(['CASH', 'POINT'])
+  currency: 'CASH' | 'POINT';
 
   @IsString()
   @IsNotEmpty()

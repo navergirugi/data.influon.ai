@@ -6,7 +6,6 @@ import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { BusinessStatus, CampaignStatus, PointType, PointStatus, AdminActionType, UserRole, UserStatus } from '../entities/enums';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { Campaign } from '../entities/campaign.entity';
-import { PointTransaction } from '../entities/point-transaction.entity';
 import { AdminAuditLog } from '../entities/admin-audit-log.entity';
 import { ProcessWithdrawalDto } from './dto/process-withdrawal.dto';
 import { AdjustPointsDto } from './dto/adjust-points.dto';
@@ -23,6 +22,8 @@ import { UpdateUserInfoManualDto } from './dto/update-user-info-manual.dto';
 import { AdminNote } from '../entities/admin-note.entity';
 import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
 import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
+import { WalletService } from '../wallet/wallet.service';
+import { PointTransaction } from '../entities/point-transaction.entity';
 
 @Injectable()
 export class AdminService {
@@ -30,8 +31,7 @@ export class AdminService {
     private dataSource: DataSource,
     private readonly campaignsService: CampaignsService,
     private readonly usersService: UsersService,
-    @InjectRepository(PointTransaction)
-    private readonly pointTransactionRepository: Repository<PointTransaction>,
+    private readonly walletService: WalletService,
     @InjectRepository(AdminAuditLog)
     private readonly auditLogRepository: Repository<AdminAuditLog>,
     @InjectRepository(AdminNote)
@@ -322,61 +322,15 @@ export class AdminService {
     return this.usersService.updateUserStatus(userId, updateDto);
   }
 
-  async adjustPoints(adminUser: User, targetUserId: string, dto: AdjustPointsDto): Promise<User> {
-    const { amount, reason } = dto;
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const targetUser = await queryRunner.manager.findOne(User, { where: { id: targetUserId } });
-      if (!targetUser) {
-        throw new NotFoundException(`User with ID "${targetUserId}" not found.`);
-      }
-
-      const originalPoints = targetUser.points;
-      targetUser.points += amount;
-
-      if (targetUser.points < 0) {
-        throw new BadRequestException('User points cannot be negative.');
-      }
-
-      const pointTx = new PointTransaction();
-      pointTx.user = targetUser;
-      pointTx.amount = amount;
-      pointTx.type = amount > 0 ? PointType.EARN : PointType.WITHDRAW;
-      pointTx.status = PointStatus.COMPLETED;
-      pointTx.description = `관리자 조정: ${reason}`;
-
-      const log = new AdminAuditLog();
-      log.adminUser = adminUser;
-      log.targetUser = targetUser;
-      log.action = AdminActionType.ADJUST_POINTS;
-      log.reason = reason;
-      log.details = {
-        targetUserId,
-        amount,
-        originalPoints,
-        newPoints: targetUser.points,
-      };
-
-      await queryRunner.manager.save(targetUser);
-      await queryRunner.manager.save(pointTx);
-      await queryRunner.manager.save(log);
-
-      await queryRunner.commitTransaction();
-      return targetUser;
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
+  async adjustBalance(adminUser: User, targetUserId: string, dto: AdjustPointsDto) {
+    const { amount, currency, reason } = dto;
+    return this.walletService.adjustBalance(adminUser, targetUserId, amount, currency, reason);
   }
 
   async getWithdrawalRequests(): Promise<PointTransaction[]> {
-    return this.pointTransactionRepository.find({
+    // This should be replaced by a method that queries the new Transaction entity
+    const pointTransactionRepository = this.dataSource.getRepository(PointTransaction);
+    return pointTransactionRepository.find({
       where: {
         type: PointType.WITHDRAW,
         status: PointStatus.PROCESSING,
@@ -386,7 +340,9 @@ export class AdminService {
     });
   }
 
-  async processWithdrawal(adminUser: User, transactionId: string, dto: ProcessWithdrawalDto): Promise<PointTransaction> {
+  async processWithdrawal(adminUser: User, transactionId: string, dto: ProcessWithdrawalDto): Promise<any> {
+    // This logic needs to be updated to use the new Wallet and Transaction services
+    // For now, keeping the old logic to avoid breaking changes, but it should be refactored
     const { status, reason } = dto;
 
     if (status === PointStatus.CANCELED && !reason) {
@@ -398,7 +354,8 @@ export class AdminService {
     await queryRunner.startTransaction();
 
     try {
-      const transaction = await queryRunner.manager.findOne(PointTransaction, {
+      const pointTransactionRepository = queryRunner.manager.getRepository(PointTransaction);
+      const transaction = await pointTransactionRepository.findOne({
         where: { id: transactionId, type: PointType.WITHDRAW, status: PointStatus.PROCESSING },
         relations: ['user'],
       });
@@ -421,7 +378,6 @@ export class AdminService {
           throw new BadRequestException('Insufficient points for withdrawal.');
         }
         
-        // Calculate tax and actual amount
         const { tax, actualAmount } = calculateWithdrawalAmount(transaction.amount);
         log.details = { 
           ...log.details,

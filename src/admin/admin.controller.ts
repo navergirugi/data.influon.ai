@@ -115,13 +115,13 @@ export class AdminController {
   }
 
   // --- Points & Withdrawals ---
-  @Post('users/:id/points/adjust')
-  adjustPoints(
+  @Post('users/:id/balance/adjust')
+  adjustBalance(
     @CurrentAdmin() adminUser: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdjustPointsDto,
   ) {
-    return this.adminService.adjustPoints(adminUser, id, dto);
+    return this.adminService.adjustBalance(adminUser, id, dto);
   }
 
   @Get('points/withdrawals')

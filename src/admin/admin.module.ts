@@ -15,12 +15,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from '../entities/user.entity';
 import { AdminNote } from '../entities/admin-note.entity';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PointTransaction, AdminAuditLog, User, AdminNote]),
     CampaignsModule,
     UsersModule,
+    WalletModule,
     CacheModule.register(),
     PassportModule.register({ defaultStrategy: 'admin-jwt' }),
     JwtModule.registerAsync({
