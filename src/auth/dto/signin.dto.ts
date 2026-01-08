@@ -7,7 +7,7 @@ export enum DeviceType {
 }
 
 export class SignInDto {
-  @ApiProperty({ description: 'User Email', example: 'user@example.com' })
+  @ApiProperty({ description: 'User Email', example: 'influencer@influon.com' })
   @IsEmail()
   email: string;
 

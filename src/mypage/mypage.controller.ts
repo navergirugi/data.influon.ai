@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Body, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { MyPageService } from './mypage.service';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CheckNicknameDto } from '../auth/dto/check-nickname.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { WithdrawPointDto } from './dto/withdraw-point.dto';
+import { GetUser } from '../auth/get-user.decorator';
+import { User } from '../entities/user.entity';
 
 @ApiTags('MyPage')
+@ApiBearerAuth('JWT-auth')
 @Controller({
   path: 'mypage',
   version: '1',
@@ -15,10 +18,8 @@ export class MyPageController {
 
   @Get()
   @ApiOperation({ summary: 'Get user profile' })
-  async getMyPageData() {
-    // TODO: Get userId from AuthGuard
-    const userId = 'dummy-user-id'; 
-    return this.myPageService.getMyPageData(userId);
+  async getMyPageData(@GetUser() user: User) {
+    return this.myPageService.getMyPageData(user.id);
   }
 
   @Post('nickname-check')
@@ -29,25 +30,19 @@ export class MyPageController {
 
   @Post('profile')
   @ApiOperation({ summary: 'Update user profile' })
-  async updateProfile(@Body() body: UpdateProfileDto) {
-    // TODO: Get userId from AuthGuard
-    const userId = 'dummy-user-id';
-    return this.myPageService.updateProfile(userId, body);
+  async updateProfile(@GetUser() user: User, @Body() body: UpdateProfileDto) {
+    return this.myPageService.updateProfile(user.id, body);
   }
 
   @Get('point-history')
   @ApiOperation({ summary: 'Get point history' })
-  async getPointHistory(@Query() query: any) { // TODO: Create PointHistoryQueryDto if needed
-    // TODO: Get userId from AuthGuard
-    const userId = 'dummy-user-id';
-    return this.myPageService.getPointHistory(userId, query);
+  async getPointHistory(@GetUser() user: User, @Query() query: any) {
+    return this.myPageService.getPointHistory(user.id, query);
   }
 
   @Post('withdraw')
   @ApiOperation({ summary: 'Request point withdrawal' })
-  async withdrawPoint(@Body() body: WithdrawPointDto) {
-    // TODO: Get userId from AuthGuard
-    const userId = 'dummy-user-id';
-    return this.myPageService.withdrawPoint(userId, body);
+  async withdrawPoint(@GetUser() user: User, @Body() body: WithdrawPointDto) {
+    return this.myPageService.withdrawPoint(user.id, body);
   }
 }

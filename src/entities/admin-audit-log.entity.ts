@@ -1,31 +1,50 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne } from 'typeorm';
-import { User } from './user.entity';
-import { Campaign } from './campaign.entity';
-import { AdminActionType } from './enums';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { User } from "./user.entity";
+import { Campaign } from "./campaign.entity";
+import { AdminActionType } from "./enums";
 
-@Entity()
+@Entity({ comment: "관리자 활동 감사 로그 테이블" })
 export class AdminAuditLog {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ comment: "로그 고유 ID" })
   id: number;
 
   @ManyToOne(() => User)
-  adminUser: User; // The admin who performed the action
+  @JoinColumn({ name: 'adminUserId' })
+  adminUser: User;
 
-  @Column({ type: 'enum', enum: AdminActionType })
+  @Column({ comment: '활동을 수행한 관리자 ID (FK)' })
+  adminUserId: string;
+
+  @Column({ type: "enum", enum: AdminActionType, comment: "활동 유형" })
   action: AdminActionType;
 
   @ManyToOne(() => User, { nullable: true })
-  targetUser?: User; // The user being acted upon
+  @JoinColumn({ name: 'targetUserId' })
+  targetUser?: User;
+
+  @Column({ nullable: true, comment: '활동 대상 사용자 ID (FK)' })
+  targetUserId?: string;
 
   @ManyToOne(() => Campaign, { nullable: true })
-  targetCampaign?: Campaign; // The campaign being acted upon
+  @JoinColumn({ name: 'targetCampaignId' })
+  targetCampaign?: Campaign;
 
-  @Column({ type: 'text' })
+  @Column({ nullable: true, comment: '활동 대상 캠페인 ID (FK)' })
+  targetCampaignId?: number;
+
+  @Column({ type: "text", comment: "활동 사유" })
   reason: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  details?: Record<string, any>; // For storing extra info, e.g., point changes
+  @Column({ type: "jsonb", nullable: true, comment: "추가 정보 (JSON 형식)" })
+  details?: Record<string, any>;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ comment: "생성 일시" })
   createdAt: Date;
 }

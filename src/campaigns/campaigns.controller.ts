@@ -1,10 +1,13 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SearchCampaignDto } from './dto/search-campaign.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { GetUser } from '../auth/get-user.decorator';
+import { User } from '../entities/user.entity';
 
 @ApiTags('Campaigns')
+@ApiBearerAuth('JWT-auth')
 @Controller({
   path: 'campaigns',
   version: '1',
@@ -32,7 +35,7 @@ export class CampaignsController {
 
   @Post('apply')
   @ApiOperation({ summary: 'Apply for a campaign' })
-  async apply(@Body() body: CreateApplicationDto) {
-    return this.campaignsService.apply(body);
+  async apply(@GetUser() user: User, @Body() body: CreateApplicationDto) {
+    return this.campaignsService.apply(user, body);
   }
 }

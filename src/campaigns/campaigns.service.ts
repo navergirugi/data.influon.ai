@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Campaign } from '../entities/campaign.entity';
 import { CampaignApplication } from '../entities/campaign-application.entity';
-import { CampaignStatus, ApplicationStatus } from '../entities/enums';
+import { CampaignStatus, ApplicationStatus, UserRole, Platform } from '../entities/enums';
 import { SearchCampaignDto } from './dto/search-campaign.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
@@ -19,14 +19,78 @@ export class CampaignsService {
     private applicationRepository: Repository<CampaignApplication>,
   ) {}
 
+  private convertPlatformToEnum(platform: string): Platform {
+    const platformMap = {
+      '인스타그램': Platform.INSTAGRAM,
+      '유튜브': Platform.YOUTUBE,
+      '블로그': Platform.BLOG,
+      '틱톡': Platform.TIKTOK,
+      '트위터': Platform.TWITTER,
+      '페이스북': Platform.FACEBOOK,
+    };
+    const enumValue = platformMap[platform] || Platform[platform.toUpperCase() as keyof typeof Platform];
+    if (!enumValue) {
+      throw new BadRequestException(`Invalid platform: ${platform}`);
+    }
+    return enumValue;
+  }
+
+  private convertStatusToEnum(status: string): CampaignStatus {
+    const statusMap = {
+      '모집중': CampaignStatus.RECRUITING,
+      '진행중': CampaignStatus.IN_PROGRESS,
+      '리뷰중': CampaignStatus.REVIEWING,
+      '종료': CampaignStatus.ENDED,
+      '예정': CampaignStatus.UPCOMING,
+    };
+    const enumValue = statusMap[status] || CampaignStatus[status.toUpperCase() as keyof typeof CampaignStatus];
+    if (!enumValue) {
+      throw new BadRequestException(`Invalid status: ${status}`);
+    }
+    return enumValue;
+  }
+
+  async apply(user: User, body: CreateApplicationDto): Promise<CampaignApplication> {
+    const { campaignId, ...rest } = body;
+
+    if (user.role !== UserRole.INFLUENCER) {
+      throw new BadRequestException('Only influencers can apply for campaigns.');
+    }
+
+    const campaign = await this.campaignRepository.findOne({ where: { id: +campaignId } });
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID ${campaignId} not found.`);
+    }
+
+    const existingApplication = await this.applicationRepository.findOne({
+      where: { campaign: { id: +campaignId }, user: { id: user.id } },
+    });
+
+    if (existingApplication) {
+      throw new ConflictException('You have already applied for this campaign.');
+    }
+
+    const application = this.applicationRepository.create({
+      ...rest,
+      campaign,
+      user,
+      status: ApplicationStatus.APPLYING,
+    });
+
+    return this.applicationRepository.save(application);
+  }
+
   async create(
     dto: CreateCampaignDto,
     advertiser: User,
     createdByAdmin?: User,
     autoApprove: boolean = false,
   ): Promise<Campaign> {
+    const platformEnum = this.convertPlatformToEnum(dto.platform);
+
     const campaign = this.campaignRepository.create({
       ...dto,
+      platform: platformEnum,
       advertiser,
       createdByAdmin,
       status: autoApprove ? CampaignStatus.RECRUITING : CampaignStatus.PENDING_APPROVAL,
@@ -103,11 +167,13 @@ export class CampaignsService {
     }
     
     if (query.channel && query.channel !== '전체') {
-        qb.andWhere('campaign.platform = :platform', { platform: query.channel });
+        const platformEnum = this.convertPlatformToEnum(query.channel);
+        qb.andWhere('campaign.platform = :platform', { platform: platformEnum });
     }
 
     if (query.status && query.status !== '전체') {
-        qb.andWhere('campaign.status = :status', { status: query.status });
+        const statusEnum = this.convertStatusToEnum(query.status);
+        qb.andWhere('campaign.status = :status', { status: statusEnum });
     }
 
     // TODO: Implement city/district filter logic (requires DB schema support for address parsing or separate columns)
@@ -151,28 +217,6 @@ export class CampaignsService {
     return {
       success: true,
       data: detail,
-    };
-  }
-
-  async apply(body: CreateApplicationDto) {
-    // body: { campaignId, participationType, rewardPoint, visitDateTime, agreedTerms }
-    // TODO: Get userId from JWT (AuthGuard)
-    // For now, using a dummy user ID or creating a dummy application
-    
-    // const application = this.applicationRepository.create({
-    //     campaignId: body.campaignId,
-    //     userId: 'dummy-user-id', // Needs Auth
-    //     status: ApplicationStatus.APPLYING,
-    //     participationType: body.participationType,
-    //     rewardPoint: body.rewardPoint,
-    //     // ... other fields
-    // });
-    // await this.applicationRepository.save(application);
-
-    return {
-      success: true,
-      message: '캠페인 신청이 완료되었습니다.',
-      data: null,
     };
   }
 }

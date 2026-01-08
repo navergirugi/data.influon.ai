@@ -16,7 +16,10 @@ import { UpdateUserInfoManualDto } from './dto/update-user-info-manual.dto';
 import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
 import { CurrentAdmin } from './auth/current-admin.decorator';
 import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Admin')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin')
 @UseGuards(AdminAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.OPERATOR)

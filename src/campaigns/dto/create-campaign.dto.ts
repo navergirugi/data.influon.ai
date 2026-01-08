@@ -1,5 +1,4 @@
-import { IsString, IsEnum, IsDateString, IsBoolean, IsArray, IsOptional } from 'class-validator';
-import { Platform } from '../../entities/enums';
+import { IsString, IsDateString, IsBoolean, IsArray, IsOptional } from 'class-validator';
 
 export class CreateCampaignDto {
   @IsString()
@@ -15,8 +14,8 @@ export class CreateCampaignDto {
   @IsString()
   image: string;
 
-  @IsEnum(Platform)
-  platform: Platform;
+  @IsString()
+  platform: string;
 
   @IsString()
   category: string;

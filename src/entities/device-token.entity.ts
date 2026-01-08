@@ -6,27 +6,27 @@ export enum DeviceType {
   IOS = 'ios',
 }
 
-@Entity()
+@Entity({ comment: '사용자 디바이스 토큰 테이블 (푸시 알림용)' })
 export class DeviceToken {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ comment: '디바이스 토큰 고유 ID' })
   id: number;
 
-  @Column()
+  @Column({ comment: 'FCM 토큰 값' })
   token: string;
 
-  @Column({ type: 'enum', enum: DeviceType, enumName: 'device_type_enum' })
+  @Column({ type: 'enum', enum: DeviceType, enumName: 'device_type_enum', comment: '디바이스 유형 (ANDROID, IOS)' })
   deviceType: DeviceType;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ comment: '토큰 등록 일시' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ comment: '토큰 수정 일시' })
   updatedAt: Date;
 
   @ManyToOne(() => User, (user) => user.deviceTokens, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, comment: '사용자 ID (FK)' })
   userId: string;
 }

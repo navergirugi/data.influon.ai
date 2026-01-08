@@ -1,159 +1,256 @@
 import { DataSource } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+import { faker } from '@faker-js/faker';
 import { User } from '../../entities/user.entity';
 import { Campaign } from '../../entities/campaign.entity';
-import { CampaignApplication } from '../../entities/campaign-application.entity';
-import { PointTransaction } from '../../entities/point-transaction.entity';
+import { Wallet } from '../../entities/wallet.entity';
+import { Transaction } from '../../entities/transaction.entity';
 import { SocialConnection } from '../../entities/social-connection.entity';
-import { Gender, Platform, CampaignStatus, ApplicationStatus, VisitStatus, ReviewStatus, PointType, PointStatus, UserRole } from '../../entities/enums';
-import * as bcrypt from 'bcrypt';
+import {
+  UserRole,
+  UserStatus,
+  BusinessStatus,
+  Gender,
+  Platform,
+  CampaignStatus,
+  TransactionType,
+} from '../../entities/enums';
 
 export const seedDatabase = async (dataSource: DataSource) => {
-  const userRepository = dataSource.getRepository(User);
-  const campaignRepository = dataSource.getRepository(Campaign);
-  const applicationRepository = dataSource.getRepository(CampaignApplication);
-  const pointTransactionRepository = dataSource.getRepository(PointTransaction);
-  const socialConnectionRepository = dataSource.getRepository(SocialConnection);
+  const queryRunner = dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  // 0. Create Admin User
-  const adminEmail = 'admin@influon.com';
-  let adminUser = await userRepository.findOne({ where: { email: adminEmail } });
-  if (!adminUser) {
+  try {
+    // Clear existing data from all relevant tables
+    await queryRunner.manager.query('TRUNCATE "user" CASCADE;');
+    await queryRunner.manager.query('TRUNCATE wallet CASCADE;');
+    await queryRunner.manager.query('TRUNCATE transaction CASCADE;');
+    await queryRunner.manager.query('TRUNCATE campaign CASCADE;');
+    await queryRunner.manager.query('TRUNCATE campaign_application CASCADE;');
+    await queryRunner.manager.query('TRUNCATE admin_audit_log CASCADE;');
+    await queryRunner.manager.query('TRUNCATE user_status_history CASCADE;');
+    await queryRunner.manager.query('TRUNCATE admin_note CASCADE;');
+    await queryRunner.manager.query('TRUNCATE social_connection CASCADE;');
+    await queryRunner.manager.query('TRUNCATE penalty CASCADE;');
+    await queryRunner.manager.query('TRUNCATE favorite CASCADE;');
+    await queryRunner.manager.query('TRUNCATE inquiry CASCADE;');
+    await queryRunner.manager.query('TRUNCATE notification CASCADE;');
+    await queryRunner.manager.query('TRUNCATE device_token CASCADE;');
+
+
+    const userRepository = queryRunner.manager.getRepository(User);
+    const walletRepository = queryRunner.manager.getRepository(Wallet);
+    const transactionRepository = queryRunner.manager.getRepository(Transaction);
+    const campaignRepository = queryRunner.manager.getRepository(Campaign);
+    const socialConnectionRepository = queryRunner.manager.getRepository(SocialConnection);
+
+    const ADMIN_PASSWORD = 'admin1234';
+    const USER_PASSWORD = 'password123';
+    const NUM_ADVERTISERS = 10;
+    const NUM_INFLUENCERS = 10;
+    const CAMPAIGNS_PER_ADVERTISER = 10;
+
+    const createdUsers: { [key: string]: User } = {};
+    const createdAdvertisers: User[] = [];
+    const createdInfluencers: User[] = [];
+
+    // --- 1. Create Admin Users ---
     const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash('admin1234', salt);
-    adminUser = userRepository.create({
-      email: adminEmail,
-      password: hashedPassword,
-      name: '관리자',
-      nickname: 'influon_admin',
-      role: UserRole.ADMIN,
+
+    const superAdmin = userRepository.create({
+      email: 'superadmin@influon.com',
+      name: 'Super Admin',
+      nickname: 'super_admin',
+      role: UserRole.SUPER_ADMIN,
+      status: UserStatus.ACTIVE,
+      password: await bcrypt.hash(ADMIN_PASSWORD, salt),
     });
-    await userRepository.save(adminUser);
-    console.log('Admin user created!');
-  }
+    createdUsers['super_admin'] = await userRepository.save(superAdmin);
+    await walletRepository.save(walletRepository.create({ user: createdUsers['super_admin'] }));
 
+    const operator = userRepository.create({
+      email: 'operator@influon.com',
+      name: 'Operator',
+      nickname: 'operator',
+      role: UserRole.OPERATOR,
+      status: UserStatus.ACTIVE,
+      password: await bcrypt.hash(ADMIN_PASSWORD, salt),
+    });
+    createdUsers['operator'] = await userRepository.save(operator);
+    await walletRepository.save(walletRepository.create({ user: createdUsers['operator'] }));
 
-  // 1. Create User
-  let user = await userRepository.findOne({ where: { email: 'influon@example.com' } });
-  if (!user) {
-    user = userRepository.create({
-      email: 'influon@example.com',
-      name: '김인플',
-      nickname: 'influencer_kim',
-      profileImage: 'https://placehold.co/96x96/E9E9E9/757575?text=USER',
-      location: '서울',
-      birthYear: '1995',
-      gender: Gender.FEMALE,
-      phone: '010-1234-5678',
-      points: 150000,
+    console.log('Admin users created.');
+
+    // --- Fixed Test Users ---
+    const fixedAdvertiser = userRepository.create({
+      email: 'advertiser@influon.com',
+      name: 'Fixed Advertiser',
+      nickname: 'fixed_advertiser',
+      role: UserRole.ADVERTISER,
+      status: UserStatus.ACTIVE,
+      businessName: 'Fixed Corp',
+      businessNumber: '999-88-77777',
+      businessStatus: BusinessStatus.APPROVED,
+      password: await bcrypt.hash(USER_PASSWORD, salt),
+    });
+    createdUsers['fixed_advertiser'] = await userRepository.save(fixedAdvertiser);
+    const fixedAdvertiserWallet = walletRepository.create({ user: createdUsers['fixed_advertiser'], cashBalance: 1000000 });
+    await walletRepository.save(fixedAdvertiserWallet);
+    await transactionRepository.save(transactionRepository.create({
+        wallet: fixedAdvertiserWallet,
+        type: TransactionType.DEPOSIT,
+        amount: fixedAdvertiserWallet.cashBalance,
+        balanceAfter: fixedAdvertiserWallet.cashBalance,
+        currency: 'CASH',
+        description: '고정 광고주 초기 충전',
+    }));
+    createdAdvertisers.unshift(fixedAdvertiser); // Add to the beginning
+
+    const fixedInfluencer = userRepository.create({
+      email: 'influencer@influon.com',
+      name: 'Fixed Influencer',
+      nickname: 'fixed_influencer',
       role: UserRole.INFLUENCER,
+      status: UserStatus.ACTIVE,
+      gender: Gender.FEMALE,
+      birthYear: '1990',
+      password: await bcrypt.hash(USER_PASSWORD, salt),
     });
-    await userRepository.save(user);
-
-    // Social Connections
-    const socials = [
-      { platform: Platform.YOUTUBE, url: 'https://youtube.com/example', isConnected: true, providerId: 'yt_123' },
-      { platform: Platform.INSTAGRAM, url: 'https://instagram.com/example', isConnected: true, providerId: 'ig_123' },
-    ];
-
-    for (const s of socials) {
-      const social = socialConnectionRepository.create({
-        user,
-        platform: s.platform,
-        url: s.url,
-        isConnected: s.isConnected,
-        providerId: s.providerId,
-      });
-      await socialConnectionRepository.save(social);
-    }
-
-    // Point History
-    const points = [
-        { type: PointType.EARN, amount: 50000, status: PointStatus.COMPLETED, description: '여름맞이 뷰티 캠페인', createdAt: new Date('2024-08-15') },
-        { type: PointType.WITHDRAW, amount: 20000, status: PointStatus.COMPLETED, description: '인출', createdAt: new Date('2024-08-10') },
-        { type: PointType.EARN, amount: 30000, status: PointStatus.COMPLETED, description: '맛집 탐방 캠페인', createdAt: new Date('2024-07-25') },
-    ];
-
-    for (const p of points) {
-        const tx = pointTransactionRepository.create({
-            user,
-            type: p.type,
-            amount: p.amount,
-            status: p.status,
-            description: p.description,
-            createdAt: p.createdAt
-        });
-        await pointTransactionRepository.save(tx);
-    }
-  }
-
-  // 2. Create Campaigns
-  const campaignsData = [
-    {
-      title: '브이엔디 성수점 리뷰 이벤트',
-      subTitle: '브이엔디 세트메뉴 + 사이드 제공',
-      shopName: '브이엔디 성수점',
-      image: 'https://placehold.co/400x300/E9E9E9/757575?text=VND_Seongsu',
-      platform: Platform.YOUTUBE,
-      category: '맛집',
-      status: CampaignStatus.IN_PROGRESS, // Changed from TODAY_OPEN to IN_PROGRESS as per mock data logic, but let's use TODAY_OPEN for main list query
-      period: '2024.08.24-2024.08.31',
-      announcementDate: new Date('2024-09-01'),
-      reviewDeadline: new Date('2024-09-15'),
-      hasVideo: true,
-      keywords: ['성수맛집', '성수동일식'],
-      serviceDetail: '브이엔디 세트메뉴 + 사이드 제공',
-      missionGuide: '영상 1분 내외 편집 필수',
-      notice: '주말 방문 불가',
-      address: '서울시 성동구 서울숲 6길 22 지하 1층',
-      lat: 37.5469112,
-      lng: 127.0433291,
-    },
-    {
-      title: '[강남] 프리미엄 헤어살롱 체험단',
-      subTitle: '전체 시술 50% 할인 및 클리닉 서비스',
-      shopName: '프리미엄 헤어살롱',
-      image: 'https://placehold.co/400x300/E9E9E9/757575?text=Hair_Gangnam',
+    createdUsers['fixed_influencer'] = await userRepository.save(fixedInfluencer);
+    const fixedInfluencerWallet = walletRepository.create({ user: createdUsers['fixed_influencer'], pointBalance: 50000 });
+    await walletRepository.save(fixedInfluencerWallet);
+    await transactionRepository.save(transactionRepository.create({
+        wallet: fixedInfluencerWallet,
+        type: TransactionType.ADMIN_ADJUSTMENT,
+        amount: fixedInfluencerWallet.pointBalance,
+        balanceAfter: fixedInfluencerWallet.pointBalance,
+        currency: 'POINT',
+        description: '고정 인플루언서 초기 포인트',
+        adminUser: createdUsers['super_admin'],
+    }));
+    createdInfluencers.unshift(fixedInfluencer); // Add to the beginning
+    await socialConnectionRepository.save(socialConnectionRepository.create({
+      user: fixedInfluencer,
       platform: Platform.INSTAGRAM,
-      category: '뷰티',
-      status: CampaignStatus.IN_PROGRESS,
-      period: '2024.08.20-2024.08.30',
-      announcementDate: new Date('2024-09-01'),
-      reviewDeadline: new Date('2024-09-15'),
-      hasVideo: false,
-      keywords: ['강남미용실', '레이어드컷'],
-      address: '서울 강남구 테헤란로 123',
-      lat: 37.4999072,
-      lng: 127.0344425,
-    },
-    {
-      title: '[홍대] 숨은 카페 디저트 체험단',
-      subTitle: '시그니처 에이드 2잔 + 디저트 플래터',
-      shopName: '홍대 카페',
-      image: 'https://placehold.co/400x300/E9E9E9/757575?text=Cafe_Hongdae',
-      platform: Platform.YOUTUBE,
-      category: '카페',
-      status: CampaignStatus.UPCOMING,
-      period: '2024.09.01-2024.09.10',
-      announcementDate: new Date('2024-09-12'),
-      reviewDeadline: new Date('2024-09-30'),
-      hasVideo: true,
-      keywords: ['홍대카페', '연남동디저트'],
-      address: '서울 마포구 와우산로 45',
-      lat: 37.5485376,
-      lng: 126.9228062,
-    }
-  ];
+      url: 'https://instagram.com/fixed_influencer',
+      isConnected: true,
+      providerId: faker.string.uuid(),
+    }));
+    console.log('Fixed test users created.');
 
-  // Force one to be TODAY_OPEN for the main list query
-  campaignsData[0].status = CampaignStatus.TODAY_OPEN;
 
-  for (const cData of campaignsData) {
-    const existing = await campaignRepository.findOne({ where: { title: cData.title } });
-    if (!existing) {
-      const campaign = campaignRepository.create(cData);
-      await campaignRepository.save(campaign);
+    // --- 2. Create Advertisers (Dynamic) ---
+    for (let i = 0; i < NUM_ADVERTISERS; i++) {
+      const user = userRepository.create({
+        email: faker.internet.email(),
+        name: faker.person.fullName(),
+        nickname: `advertiser_${i + 1}`,
+        role: UserRole.ADVERTISER,
+        status: UserStatus.ACTIVE,
+        businessName: faker.company.name(),
+        businessNumber: faker.string.numeric(10),
+        businessStatus: i === 0 ? BusinessStatus.PENDING : BusinessStatus.APPROVED, // One pending advertiser
+        password: await bcrypt.hash(USER_PASSWORD, salt),
+      });
+      const savedUser = await userRepository.save(user);
+      const wallet = walletRepository.create({ user: savedUser, cashBalance: faker.number.int({ min: 100000, max: 1000000 }) });
+      await walletRepository.save(wallet);
+      await transactionRepository.save(transactionRepository.create({
+        wallet,
+        type: TransactionType.DEPOSIT,
+        amount: wallet.cashBalance,
+        balanceAfter: wallet.cashBalance,
+        currency: 'CASH',
+        description: '초기 충전',
+      }));
+      createdAdvertisers.push(savedUser);
+      createdUsers[savedUser.nickname] = savedUser;
     }
+    console.log(`${NUM_ADVERTISERS} dynamic advertisers created.`);
+
+    // --- 3. Create Influencers (Dynamic) ---
+    for (let i = 0; i < NUM_INFLUENCERS; i++) {
+      const user = userRepository.create({
+        email: faker.internet.email(),
+        name: faker.person.fullName(),
+        nickname: `influencer_${i + 1}`,
+        role: UserRole.INFLUENCER,
+        status: UserStatus.ACTIVE,
+        gender: faker.helpers.arrayElement([Gender.MALE, Gender.FEMALE]),
+        birthYear: faker.date.past({ years: 30 }).getFullYear().toString(),
+        password: await bcrypt.hash(USER_PASSWORD, salt),
+      });
+      const savedUser = await userRepository.save(user);
+      const wallet = walletRepository.create({ user: savedUser, pointBalance: faker.number.int({ min: 5000, max: 50000 }) });
+      await walletRepository.save(wallet);
+      await transactionRepository.save(transactionRepository.create({
+        wallet,
+        type: TransactionType.ADMIN_ADJUSTMENT,
+        amount: wallet.pointBalance,
+        balanceAfter: wallet.pointBalance,
+        currency: 'POINT',
+        description: '가입 축하 포인트',
+        adminUser: createdUsers['super_admin'],
+      }));
+      createdInfluencers.push(savedUser);
+      createdUsers[savedUser.nickname] = savedUser;
+
+      // Add some social connections
+      await socialConnectionRepository.save(socialConnectionRepository.create({
+        user: savedUser,
+        platform: faker.helpers.arrayElement(Object.values(Platform)),
+        url: faker.internet.url(),
+        isConnected: true,
+        providerId: faker.string.uuid(),
+      }));
+    }
+    console.log(`${NUM_INFLUENCERS} dynamic influencers created.`);
+
+    // --- 4. Create Campaigns for each Advertiser ---
+    const campaignStatuses = Object.values(CampaignStatus).filter(s => ![CampaignStatus.PENDING_APPROVAL, CampaignStatus.APPROVED].includes(s as CampaignStatus));
+    const platforms = Object.values(Platform);
+
+    for (const advertiser of createdAdvertisers) {
+      for (let i = 0; i < CAMPAIGNS_PER_ADVERTISER; i++) {
+        const startDate = faker.date.soon({ days: 60 }); // Start date within next 60 days
+        const endDate = faker.date.soon({ days: 30, refDate: startDate }); // End date within 30 days of start
+        const announcementDate = faker.date.soon({ days: 7, refDate: startDate });
+        const reviewDeadline = faker.date.soon({ days: 14, refDate: endDate });
+
+        const campaign = campaignRepository.create({
+          title: faker.lorem.sentence(3) + ` (${advertiser.nickname}'s Campaign ${i + 1})`,
+          subTitle: faker.lorem.sentence(5),
+          shopName: faker.company.name(),
+          image: faker.image.urlLoremFlickr({ category: 'business' }),
+          platform: faker.helpers.arrayElement(platforms),
+          category: faker.commerce.department(),
+          status: i === 0 ? CampaignStatus.PENDING_APPROVAL : faker.helpers.arrayElement(campaignStatuses), // One pending campaign per advertiser
+          period: `${startDate.toISOString().split('T')[0]} - ${endDate.toISOString().split('T')[0]}`,
+          announcementDate: announcementDate,
+          reviewDeadline: reviewDeadline,
+          hasVideo: faker.datatype.boolean(),
+          keywords: faker.lorem.words(3).split(' '),
+          serviceDetail: faker.lorem.paragraph(),
+          missionGuide: faker.lorem.paragraph(),
+          notice: faker.lorem.sentence(),
+          address: faker.location.streetAddress(true),
+          lat: faker.location.latitude(),
+          lng: faker.location.longitude(),
+          advertiser: advertiser,
+          createdByAdmin: faker.datatype.boolean(0.1) ? createdUsers['operator'] : null, // 10% chance created by admin
+        });
+        await campaignRepository.save(campaign);
+      }
+    }
+    console.log(`${createdAdvertisers.length * CAMPAIGNS_PER_ADVERTISER} campaigns created.`);
+
+    await queryRunner.commitTransaction();
+    console.log('Database seeded successfully!');
+  } catch (error) {
+    console.error('Seeding failed:', error);
+    await queryRunner.rollbackTransaction();
+  } finally {
+    await queryRunner.release();
   }
-
-  console.log('Database seeded successfully!');
 };
