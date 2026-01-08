@@ -3,13 +3,15 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
 
-dotenv.config({
-  path: process.env.NODE_ENV === 'local' 
-    ? '.env.local' 
-    : process.env.NODE_ENV === 'development' 
-      ? '.env.development' 
-      : '.env',
-});
+// Determine the env file path based on NODE_ENV
+const envFilePath = process.env.NODE_ENV === 'local' 
+  ? '.env.local' 
+  : process.env.NODE_ENV === 'development' 
+    ? '.env.development' 
+    : '.env';
+
+// Load environment variables from the determined file
+dotenv.config({ path: envFilePath });
 
 export const typeOrmConfig = (configService: ConfigService): TypeOrmModuleOptions => {
   return {
@@ -20,7 +22,7 @@ export const typeOrmConfig = (configService: ConfigService): TypeOrmModuleOption
     password: configService.get<string>('POSTGRES_PASSWORD'),
     database: configService.get<string>('POSTGRES_DB'),
     entities: [__dirname + '/../**/*.entity.{js,ts}'],
-    synchronize: process.env.NODE_ENV !== 'production', // Don't use synchronize in production
+    synchronize: process.env.NODE_ENV !== 'production',
     logging: process.env.NODE_ENV === 'local',
   };
 };
@@ -34,8 +36,8 @@ export const dataSourceOptions: DataSourceOptions = {
   password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB,
   entities: ['src/**/*.entity.ts'],
-  migrations: ['src/migrations/*.ts'],
-  synchronize: false, // Migrations should be manual
+  migrations: ['src/database/migrations/*.ts'], // Corrected path
+  synchronize: false,
 };
 
 const dataSource = new DataSource(dataSourceOptions);
