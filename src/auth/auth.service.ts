@@ -11,7 +11,7 @@ import { JwtService } from "@nestjs/jwt";
 import { SignInDto } from "./dto/signin.dto";
 import { SignUpDto } from "./dto/signup.dto";
 import { FindAccountDto } from "./dto/find-account.dto";
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from "bcrypt";
 
 @Injectable()
 export class AuthService {
@@ -33,24 +33,19 @@ export class AuthService {
       );
     }
 
-    // Handle Device Token
     if (deviceToken && deviceType) {
       await this.saveDeviceToken(user, deviceToken, deviceType);
     }
 
     const payload = { id: user.id, email: user.email, role: user.role };
     const token = this.jwtService.sign(payload);
-
     return {
-      success: true,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          nickname: user.nickname,
-        },
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        nickname: user.nickname,
       },
     };
   }
@@ -79,15 +74,11 @@ export class AuthService {
 
     const savedUser = await this.userRepository.save(user);
 
-    // Handle Device Token
     if (deviceToken && deviceType) {
       await this.saveDeviceToken(savedUser, deviceToken, deviceType);
     }
 
-    return {
-      success: true,
-      message: "회원가입이 완료되었습니다.",
-    };
+    return { message: "회원가입이 완료되었습니다." };
   }
 
   private async saveDeviceToken(user: User, token: string, type: DeviceType) {
@@ -109,10 +100,7 @@ export class AuthService {
   }
 
   async findAccount(body: FindAccountDto) {
-    return {
-      success: true,
-      message: "계정 찾기 기능은 아직 구현되지 않았습니다.",
-    };
+    return { message: "계정 찾기 기능은 아직 구현되지 않았습니다." };
   }
 
   async checkNickname(nickname: string) {
@@ -120,25 +108,15 @@ export class AuthService {
     if (user) {
       throw new ConflictException("이미 사용 중인 닉네임입니다.");
     }
-    return {
-      success: true,
-      message: "사용 가능한 닉네임입니다.",
-    };
+    return { message: "사용 가능한 닉네임입니다." };
   }
 
   async sendEmailCode(email: string) {
-    return {
-      success: true,
-      message: "인증 코드가 전송되었습니다.",
-    };
+    return { message: "인증 코드가 전송되었습니다." };
   }
 
   async withdrawUser(userId: string) {
     await this.userRepository.softDelete(userId);
-
-    return {
-      success: true,
-      message: "회원 탈퇴가 완료되었습니다.",
-    };
+    return { message: "회원 탈퇴가 완료되었습니다." };
   }
 }

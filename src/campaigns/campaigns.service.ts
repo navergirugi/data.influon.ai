@@ -134,32 +134,24 @@ export class CampaignsService {
   }
 
   async getMainList() {
-    // TODO: Implement actual logic for "Today Open" and "Nearby"
-    // For now, just fetching some campaigns to return structure
-    
     const todayOpen = await this.campaignRepository.find({
       where: { status: CampaignStatus.TODAY_OPEN },
       take: 5,
       order: { createdAt: 'DESC' }
     });
 
-    // Nearby logic requires user location, for now returning random or latest
     const nearby = await this.campaignRepository.find({
       take: 5,
       order: { id: 'DESC' }
     });
 
     return {
-      success: true,
-      data: {
-        todayOpen,
-        nearby,
-      },
+      todayOpen,
+      nearby,
     };
   }
 
   async search(query: SearchCampaignDto) {
-    // Basic search implementation
     const qb = this.campaignRepository.createQueryBuilder('campaign');
 
     if (query.category && query.category !== '전체') {
@@ -176,22 +168,13 @@ export class CampaignsService {
         qb.andWhere('campaign.status = :status', { status: statusEnum });
     }
 
-    // TODO: Implement city/district filter logic (requires DB schema support for address parsing or separate columns)
-    // if (query.city) { ... }
-
-    // TODO: Implement sorting
     if (query.sort === '최신순') {
         qb.orderBy('campaign.createdAt', 'DESC');
     } else if (query.sort === '마감임박순') {
         qb.orderBy('campaign.reviewDeadline', 'ASC');
     }
 
-    const campaigns = await qb.getMany();
-
-    return {
-      success: true,
-      data: campaigns,
-    };
+    return qb.getMany();
   }
 
   async getDetail(id: number) {
@@ -201,22 +184,14 @@ export class CampaignsService {
         throw new NotFoundException(`Campaign with ID ${id} not found`);
     }
 
-    // Add mock detail fields if they are null in DB (for development)
-    // In real app, these should be in DB
-    const detail = {
+    return {
         ...campaign,
-        // Mocking location if missing
         location: { lat: campaign.lat || 37.5, lng: campaign.lng || 127.0 },
         operatingInfo: {
             offDays: campaign.offDays || '연중무휴',
             breakTime: campaign.breakTime || '없음',
             availableTime: campaign.availableTime || '10:00~22:00',
         }
-    };
-
-    return {
-      success: true,
-      data: detail,
     };
   }
 }
