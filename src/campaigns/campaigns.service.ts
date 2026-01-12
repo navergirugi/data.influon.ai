@@ -133,17 +133,35 @@ export class CampaignsService {
     return this.campaignRepository.save(campaign);
   }
 
-  async getMainList() {
+  async getMainList(latitude?: number, longitude?: number) {
     const todayOpen = await this.campaignRepository.find({
       where: { status: CampaignStatus.TODAY_OPEN },
       take: 5,
       order: { createdAt: 'DESC' }
     });
 
-    const nearby = await this.campaignRepository.find({
-      take: 5,
-      order: { id: 'DESC' }
-    });
+    let nearby;
+    if (latitude && longitude) {
+      // 하버사인 공식을 이용한 거리 계산 및 정렬 (단위: km)
+      // 6371은 지구의 반지름(km)
+      nearby = await this.campaignRepository
+        .createQueryBuilder('campaign')
+        .addSelect(
+          `(6371 * acos(cos(radians(:lat)) * cos(radians(campaign.lat)) * cos(radians(campaign.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(campaign.lat))))`,
+          'distance'
+        )
+        .where('campaign.lat IS NOT NULL')
+        .andWhere('campaign.lng IS NOT NULL')
+        .setParameters({ lat: latitude, lng: longitude })
+        .orderBy('distance', 'ASC')
+        .take(5)
+        .getMany();
+    } else {
+      nearby = await this.campaignRepository.find({
+        take: 5,
+        order: { id: 'DESC' }
+      });
+    }
 
     return {
       todayOpen,

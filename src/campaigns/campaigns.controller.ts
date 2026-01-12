@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { SearchCampaignDto } from './dto/search-campaign.dto';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { GetUser } from '../auth/get-user.decorator';
@@ -17,8 +17,13 @@ export class CampaignsController {
 
   @Get('main-list')
   @ApiOperation({ summary: 'Get main campaign list (Today Open, Nearby)' })
-  async getMainList() {
-    return this.campaignsService.getMainList();
+  @ApiQuery({ name: 'latitude', required: false, type: Number })
+  @ApiQuery({ name: 'longitude', required: false, type: Number })
+  async getMainList(
+    @Query('latitude') latitude?: number,
+    @Query('longitude') longitude?: number,
+  ) {
+    return this.campaignsService.getMainList(latitude, longitude);
   }
 
   @Get('search')
