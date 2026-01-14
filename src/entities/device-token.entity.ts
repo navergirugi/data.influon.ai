@@ -4,6 +4,7 @@ import { User } from './user.entity';
 export enum DeviceType {
   ANDROID = 'android',
   IOS = 'ios',
+  WEB = 'web', // WEB 추가
 }
 
 @Entity({ comment: '사용자 디바이스 토큰 테이블 (푸시 알림용)' })
@@ -14,8 +15,17 @@ export class DeviceToken {
   @Column({ comment: 'FCM 토큰 값' })
   token: string;
 
-  @Column({ type: 'enum', enum: DeviceType, enumName: 'device_type_enum', comment: '디바이스 유형 (ANDROID, IOS)' })
+  @Column({ 
+    type: 'enum', 
+    enum: DeviceType, 
+    enumName: 'device_type_enum', 
+    default: DeviceType.WEB, // 기본값 추가 (기존 NULL 데이터 처리용)
+    comment: '디바이스 유형 (ANDROID, IOS, WEB)' 
+  })
   deviceType: DeviceType;
+
+  @Column({ default: true, comment: '알림 수신 동의 여부' }) // isActive 추가
+  isActive: boolean;
 
   @CreateDateColumn({ comment: '토큰 등록 일시' })
   createdAt: Date;

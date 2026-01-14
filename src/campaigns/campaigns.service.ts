@@ -9,6 +9,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { User } from '../entities/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CampaignsService {
@@ -17,6 +18,7 @@ export class CampaignsService {
     private campaignRepository: Repository<Campaign>,
     @InjectRepository(CampaignApplication)
     private applicationRepository: Repository<CampaignApplication>,
+    private notificationsService: NotificationsService,
   ) {}
 
   private convertPlatformToEnum(platform: string): Platform {
@@ -77,7 +79,14 @@ export class CampaignsService {
       status: ApplicationStatus.APPLYING,
     });
 
-    return this.applicationRepository.save(application);
+    const savedApplication = await this.applicationRepository.save(application);
+
+    // 알림 발송 (비동기 처리로 응답 지연 방지)
+    this.notificationsService.notifyCampaignApplied(user, campaign.title).catch(err => {
+        console.error('Failed to send notification:', err);
+    });
+
+    return savedApplication;
   }
 
   async create(
@@ -143,7 +152,6 @@ export class CampaignsService {
     let nearby;
     if (latitude && longitude) {
       // 하버사인 공식을 이용한 거리 계산 및 정렬 (단위: km)
-      // 6371은 지구의 반지름(km)
       nearby = await this.campaignRepository
         .createQueryBuilder('campaign')
         .addSelect(

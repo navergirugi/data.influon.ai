@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import * as Joi from 'joi';
 import { typeOrmConfig } from './config/typeorm.config';
 import { CampaignsModule } from './campaigns/campaigns.module';
@@ -9,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
 import { WalletModule } from './wallet/wallet.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -39,12 +41,14 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => typeOrmConfig(configService),
     }),
+    ScheduleModule.forRoot(), // 스케줄러 모듈 초기화
     CampaignsModule,
     MyPageModule,
     AuthModule,
     AdminModule,
     UsersModule,
     WalletModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [

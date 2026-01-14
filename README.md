@@ -139,3 +139,10 @@ Based on the frontend data structures, here is the proposed database schema.
     npm install @nestjs/typeorm typeorm pg @nestjs/config @nestjs/jwt @nestjs/passport passport passport-jwt redis
     ```
 3.  Configure `docker-compose.yml` for PostgreSQL and Redis.
+
+## Push Notifications (FCM)
+
+For details on how to set up and use the Push Notification system (FCM), please refer to the [Notification Guide](./notification.md).
+
+- **Features**: Token registration, Event-based notifications (Apply, Select, etc.), Scheduled notifications.
+- **Setup**: Requires `firebase-admin` setup and `.env` configuration.

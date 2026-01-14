@@ -26,24 +26,19 @@ export class MyPageService {
     if (!user) {
         // Return mock data structure if user not found (for dev)
         return {
-            success: true,
-            data: {
-                userProfile: {
-                    name: '김인플',
-                    nickname: 'influencer_kim',
-                    email: 'influon@example.com',
-                    points: 150000,
-                    // ... other fields
-                }
+            userProfile: {
+                name: '김인플',
+                nickname: 'influencer_kim',
+                email: 'influon@example.com',
+                points: 150000,
+                // ... other fields
             }
         };
     }
 
+    // 인터셉터가 { success: true, data: ... } 형태로 감싸주므로 순수 데이터만 반환
     return {
-      success: true,
-      data: {
-        userProfile: user,
-      },
+      userProfile: user,
     };
   }
 
@@ -53,17 +48,13 @@ export class MyPageService {
       throw new ConflictException('이미 사용 중인 닉네임입니다.');
     }
     return {
-      success: true,
       message: '사용 가능한 닉네임입니다.',
     };
   }
 
   async updateProfile(userId: string, body: UpdateProfileDto) {
     // Implement update logic
-    return {
-      success: true,
-      data: body, // Echo back
-    };
+    return body; // Echo back
   }
 
   async getPointHistory(userId: string, query: any) {
@@ -72,10 +63,7 @@ export class MyPageService {
         order: { createdAt: 'DESC' }
     });
 
-    return {
-      success: true,
-      data: history,
-    };
+    return history;
   }
 
   async withdrawPoint(userId: string, body: WithdrawPointDto) {
@@ -85,7 +73,6 @@ export class MyPageService {
     // 3. Deduct points (or hold)
     
     return {
-      success: true,
       message: '포인트 인출 신청이 완료되었습니다.',
     };
   }
