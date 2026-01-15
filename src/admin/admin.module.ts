@@ -15,7 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from '../entities/user.entity';
 import { AdminNote } from '../entities/admin-note.entity';
-import { WalletModule } from '../wallet/wallet.module';
+import { WalletModule } from '../wallet/wallet.module'; // .service -> .module로 변경
 
 @Module({
   imports: [
@@ -28,12 +28,16 @@ import { WalletModule } from '../wallet/wallet.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('ADMIN_JWT_SECRET') || configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: '12h',
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('ADMIN_JWT_SECRET') || configService.get<string>('JWT_SECRET');
+        console.log('[AdminModule] JWT Secret for Signing:', secret ? `${secret.substring(0, 5)}...` : 'NOT FOUND');
+        return {
+          secret,
+          signOptions: {
+            expiresIn: '12h',
+          },
+        };
+      },
     }),
   ],
   controllers: [AdminController, AdminAuthController],

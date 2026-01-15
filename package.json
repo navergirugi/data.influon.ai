@@ -17,6 +17,7 @@
     "// --- 애플리케이션 실행 ---": "",
     "data:start": "nest start",
     "data:start:api:local": "cross-env NODE_ENV=local npm run docker:start && cross-env NODE_ENV=local nest start --watch",
+    "data:nest:start:api:local": "cross-env NODE_ENV=local nest start --watch",
     "data:start:api:dev": "cross-env NODE_ENV=development nest start --watch",
     "data:start:api:debug": "cross-env NODE_ENV=local nest start --debug --watch",
     "data:start:api:prod": "cross-env NODE_ENV=production node dist/main",

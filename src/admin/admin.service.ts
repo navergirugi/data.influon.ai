@@ -24,6 +24,8 @@ import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
 import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
 import { WalletService } from '../wallet/wallet.service';
 import { PointTransaction } from '../entities/point-transaction.entity';
+import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
+import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -78,6 +80,20 @@ export class AdminService {
     await this.userRepository.softDelete(id);
   }
 
+  async deleteUser(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId }, relations: ['wallet'] });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    // 포인트 또는 캐시 잔액이 0보다 많으면 삭제 불가
+    if (user.wallet && (user.wallet.pointBalance > 0 || user.wallet.cashBalance > 0)) {
+      throw new BadRequestException('Cannot delete user with a positive balance.');
+    }
+
+    await this.userRepository.softDelete(userId);
+  }
+
   async updateAdminRole(id: string, role: UserRole): Promise<User> {
     const admin = await this.userRepository.findOne({ where: { id } });
     if (!admin) {
@@ -85,6 +101,61 @@ export class AdminService {
     }
     admin.role = role;
     return this.userRepository.save(admin);
+  }
+
+  // --- User Management (Admin CRUD) ---
+  async createUserByAdmin(dto: CreateUserByAdminDto): Promise<User> {
+    const { email, password, role, initialPoints, ...userData } = dto;
+
+    const existingUser = await this.userRepository.findOne({ where: { email } });
+    if (existingUser) {
+      throw new ConflictException('Email already exists.');
+    }
+
+    const hashedPassword = password ? await bcrypt.hash(password, await bcrypt.genSalt()) : undefined;
+
+    const user = this.userRepository.create({
+      email,
+      password: hashedPassword,
+      role,
+      status: UserStatus.ACTIVE, // 기본 활성 상태
+      ...userData,
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // 초기 포인트 지급 (WalletService 사용)
+    if (initialPoints && initialPoints > 0) {
+      await this.walletService.adjustBalance(
+        { id: 'admin-system', email: 'system@influon.ai', role: UserRole.ADMIN } as User, // 시스템 관리자
+        savedUser.id,
+        initialPoints,
+        'POINT', // 통화 단위
+        'Initial points for new user'
+      );
+    }
+
+    return savedUser;
+  }
+
+  async updateUserByAdmin(userId: string, dto: UpdateUserByAdminDto): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    const { password, ...updateData }: any = dto;
+
+    // 비밀번호가 제공되면 해싱
+    if (password) {
+      updateData.password = await bcrypt.hash(password, await bcrypt.genSalt());
+    }
+
+    // TypeORM의 update 메서드는 부분 업데이트에 유용
+    await this.userRepository.update(userId, updateData);
+
+    // 업데이트된 사용자 정보 반환
+    return this.userRepository.findOne({ where: { id: userId } });
   }
 
   // User Management (Manual)
@@ -268,7 +339,7 @@ export class AdminService {
     return result;
   }
 
-  async getDashboardSummary() {
+  async getDashboardSummary(): Promise<any> {
     const cacheKey = 'dashboard_summary';
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
@@ -406,18 +477,95 @@ export class AdminService {
     }
   }
 
-  async getStats() {
-    const userRepository = this.dataSource.getRepository(User);
-    const totalAdvertisers = await userRepository.count({ where: { role: UserRole.ADVERTISER } });
-    const totalInfluencers = await userRepository.count({ where: { role: UserRole.INFLUENCER } });
-    const pendingAdvertisers = await userRepository.count({
-      where: { role: UserRole.ADVERTISER, businessStatus: BusinessStatus.PENDING },
-    });
+  async getInfluencers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    status?: string,
+  ) {
+    const queryBuilder = this.userRepository.createQueryBuilder('user')
+      .leftJoinAndSelect('user.socialConnections', 'social')
+      .loadRelationCountAndMap('user.penaltyCount', 'user.penalties')
+      .where('user.role = :role', { role: UserRole.INFLUENCER })
+      .orderBy('user.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(user.nickname LIKE :search OR user.email LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (status) {
+      queryBuilder.andWhere('user.status = :status', { status });
+    }
+
+    const [users, total] = await queryBuilder.getManyAndCount();
+
+    const influencers = users.map(user => ({
+      id: user.id,
+      nickname: user.nickname,
+      email: user.email,
+      snsType: user.socialConnections?.[0]?.platform || 'NONE',
+      snsId: user.socialConnections?.[0]?.providerId || '',
+      followers: 0,
+      grade: 'C',
+      penaltyCount: (user as any).penaltyCount || 0,
+      status: user.status,
+      createdAt: user.createdAt,
+    }));
 
     return {
-      totalAdvertisers,
-      totalInfluencers,
-      pendingAdvertisers,
+      influencers,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getAdvertisers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    status?: string, // UserStatus | BusinessStatus
+  ) {
+    const queryBuilder = this.userRepository.createQueryBuilder('user')
+      .where('user.role = :role', { role: UserRole.ADVERTISER })
+      .orderBy('user.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(user.businessName LIKE :search OR user.email LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (status) {
+      // BusinessStatus에 해당하는 값인 경우 businessStatus 컬럼과 비교
+      if (Object.values(BusinessStatus).includes(status as any)) {
+        queryBuilder.andWhere('user.businessStatus = :status', { status });
+      } 
+      // UserStatus에 해당하는 값인 경우 status 컬럼과 비교
+      else {
+        // BLACKLIST -> BLACKLISTED 매핑 처리 (프론트엔드 호환)
+        const userStatus = status === 'BLACKLIST' ? UserStatus.BLACKLISTED : status;
+        queryBuilder.andWhere('user.status = :status', { status: userStatus });
+      }
+    }
+
+    const [advertisers, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      advertisers,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 }

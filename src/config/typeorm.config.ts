@@ -23,7 +23,7 @@ export const typeOrmConfig = (configService: ConfigService): TypeOrmModuleOption
     database: configService.get<string>('POSTGRES_DB'),
     entities: [__dirname + '/../**/*.entity.{js,ts}'],
     synchronize: process.env.NODE_ENV !== 'production',
-    logging: process.env.NODE_ENV === 'local',
+    logging: process.env.NODE_ENV !== 'production',
   };
 };
 

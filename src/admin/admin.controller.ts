@@ -17,6 +17,8 @@ import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
 import { CurrentAdmin } from './auth/current-admin.decorator';
 import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
+import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -49,6 +51,25 @@ export class AdminController {
   @Roles(UserRole.SUPER_ADMIN)
   updateAdminRole(@Param('id', ParseUUIDPipe) id: string, @Body('role') role: UserRole) {
     return this.adminService.updateAdminRole(id, role);
+  }
+
+  // --- User Management ---
+  @Delete('users/:id')
+  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.deleteUser(id);
+  }
+
+  @Post('users')
+  createUserByAdmin(@Body() dto: CreateUserByAdminDto) {
+    return this.adminService.createUserByAdmin(dto);
+  }
+
+  @Patch('users/:id')
+  updateUserByAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserByAdminDto,
+  ) {
+    return this.adminService.updateUserByAdmin(id, dto);
   }
 
   // --- User Management (Manual) ---
@@ -97,6 +118,20 @@ export class AdminController {
     return this.adminService.getDashboardSummary();
   }
 
+  // 프론트엔드 호환용 대시보드 통계 API
+  @Get('dashboard/stats')
+  async getDashboardStats() {
+    const summary = await this.adminService.getDashboardSummary() as any;
+    // 프론트엔드 DashboardStats 인터페이스에 맞게 변환
+    return {
+      pendingAdvertisers: summary.pendingCounts.advertisers,
+      pendingCampaigns: summary.pendingCounts.campaigns,
+      pendingWithdrawals: summary.pendingCounts.withdrawals,
+      totalRevenue: summary.cumulativeMetrics.totalPointsInSystem, // 일단 포인트 총액을 매출로 사용
+      dailyActiveUsers: 0, // DAU는 아직 구현되지 않음
+    };
+  }
+
   @Get('dashboard/revenue')
   getRevenueStats(@Query('period') period: 'daily' | 'weekly' | 'monthly' = 'monthly') {
     return this.adminService.getRevenueStats(period);
@@ -112,9 +147,33 @@ export class AdminController {
     return this.adminService.getTopInfluencers();
   }
 
-  @Get('stats')
-  getStats() {
-    return this.adminService.getStats();
+  @Get('influencers')
+  async getInfluencers(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    // Query 파라미터가 문자열로 들어올 수 있으므로 형변환
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    
+    const result = await this.adminService.getInfluencers(pageNum, limitNum, search, status);
+    return result;
+  }
+
+  @Get('advertisers')
+  async getAdvertisers(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('status') status?: UserStatus,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    
+    const result = await this.adminService.getAdvertisers(pageNum, limitNum, search, status);
+    return result;
   }
 
   // --- Points & Withdrawals ---
