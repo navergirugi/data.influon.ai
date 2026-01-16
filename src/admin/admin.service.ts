@@ -26,6 +26,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { PointTransaction } from '../entities/point-transaction.entity';
 import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
 import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
+import { UpdateCampaignByAdminDto } from './dto/update-campaign-by-admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -86,9 +87,9 @@ export class AdminService {
       throw new NotFoundException(`User with ID "${userId}" not found`);
     }
 
-    // 포인트 또는 캐시 잔액이 0보다 많으면 삭제 불가
+    // 포인트가 0보다 많으면 삭제 불가
     if (user.wallet && (user.wallet.pointBalance > 0 || user.wallet.cashBalance > 0)) {
-      throw new BadRequestException('Cannot delete user with a positive balance.');
+      throw new BadRequestException('Cannot delete user with a positive point balance.');
     }
 
     await this.userRepository.softDelete(userId);
@@ -562,6 +563,91 @@ export class AdminService {
 
     return {
       advertisers,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getCampaigns(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    status?: CampaignStatus,
+  ) {
+    const queryBuilder = this.dataSource.getRepository(Campaign).createQueryBuilder('campaign')
+      .leftJoinAndSelect('campaign.advertiser', 'advertiser')
+      .orderBy('campaign.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      queryBuilder.andWhere('campaign.title LIKE :search', { search: `%${search}%` });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('campaign.status = :status', { status });
+    }
+
+    const [campaigns, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      campaigns,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async deleteCampaign(id: number): Promise<void> {
+    const campaignRepository = this.dataSource.getRepository(Campaign);
+    const campaign = await campaignRepository.findOne({ where: { id } });
+    
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID "${id}" not found`);
+    }
+
+    await campaignRepository.softDelete(id);
+  }
+
+  async updateCampaign(id: number, dto: UpdateCampaignByAdminDto): Promise<Campaign> {
+    const campaignRepository = this.dataSource.getRepository(Campaign);
+    const campaign = await campaignRepository.findOne({ where: { id } });
+    if (!campaign) {
+      throw new NotFoundException(`Campaign with ID "${id}" not found`);
+    }
+
+    // 업데이트 로직 (간단하게 병합)
+    Object.assign(campaign, dto);
+    return campaignRepository.save(campaign);
+  }
+
+  async getTransactions(
+    page: number = 1,
+    limit: number = 10,
+    type?: PointType,
+    status?: PointStatus,
+  ) {
+    const queryBuilder = this.dataSource.getRepository(PointTransaction).createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .orderBy('transaction.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (type) {
+      queryBuilder.andWhere('transaction.type = :type', { type });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('transaction.status = :status', { status });
+    }
+
+    const [transactions, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      transactions,
       total,
       page,
       limit,

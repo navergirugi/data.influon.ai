@@ -2,7 +2,7 @@ import { Controller, Patch, Param, Body, UseGuards, ParseUUIDPipe, Get, ParseInt
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { UserRole, UserStatus } from '../entities/enums';
+import { UserRole, UserStatus, CampaignStatus, PointType, PointStatus } from '../entities/enums';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -19,6 +19,7 @@ import { CreateCampaignByAdminDto } from './dto/create-campaign-by-admin.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
 import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
+import { UpdateCampaignByAdminDto } from './dto/update-campaign-by-admin.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -186,6 +187,20 @@ export class AdminController {
     return this.adminService.adjustBalance(adminUser, id, dto);
   }
 
+  @Get('transactions')
+  async getTransactions(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('type') type?: PointType,
+    @Query('status') status?: PointStatus,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    
+    const result = await this.adminService.getTransactions(pageNum, limitNum, type, status);
+    return result;
+  }
+
   @Get('points/withdrawals')
   getWithdrawalRequests() {
     return this.adminService.getWithdrawalRequests();
@@ -201,12 +216,39 @@ export class AdminController {
   }
 
   // --- Campaign Management ---
+  @Get('campaigns')
+  async getCampaigns(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('status') status?: CampaignStatus,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    
+    const result = await this.adminService.getCampaigns(pageNum, limitNum, search, status);
+    return result;
+  }
+
+  @Delete('campaigns/:id')
+  deleteCampaign(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.deleteCampaign(id);
+  }
+
   @Post('campaigns/create-by-admin')
   createCampaignByAdmin(
     @CurrentAdmin() adminUser: User,
     @Body() dto: CreateCampaignByAdminDto,
   ) {
     return this.adminService.createCampaignByAdmin(dto, adminUser);
+  }
+
+  @Patch('campaigns/:id')
+  updateCampaign(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCampaignByAdminDto,
+  ) {
+    return this.adminService.updateCampaign(id, dto);
   }
 
   @Get('campaigns/pending')
