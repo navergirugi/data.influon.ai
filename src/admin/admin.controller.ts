@@ -2,7 +2,7 @@ import { Controller, Patch, Param, Body, UseGuards, ParseUUIDPipe, Get, ParseInt
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { UserRole, UserStatus, CampaignStatus, PointType, PointStatus, ApplicationStatus } from '../entities/enums';
+import { UserRole, UserStatus, CampaignStatus, PointType, PointStatus, ApplicationStatus, TransactionType } from '../entities/enums';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -62,6 +62,11 @@ export class AdminController {
   }
 
   // --- User Management ---
+  @Get('users/search')
+  searchUsers(@Query('q') query: string) {
+    return this.adminService.searchUsers(query);
+  }
+
   @Delete('users/:id')
   deleteUser(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.deleteUser(id);
@@ -82,7 +87,7 @@ export class AdminController {
 
   // --- User Management (Manual) ---
   @Post('users/manual')
-  createUserManual(@CurrentAdmin() admin: User, @Body() dto: CreateUserManualDto) {
+  createUserManual(@Body() dto: CreateUserManualDto, @CurrentAdmin() admin: User) {
     return this.adminService.createUserManual(dto, admin);
   }
 

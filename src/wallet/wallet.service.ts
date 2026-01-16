@@ -100,7 +100,7 @@ export class WalletService {
     });
   }
 
-  async adjustBalance(adminUser: User, userId: string, amount: number, currency: 'CASH' | 'POINT', reason: string): Promise<Wallet> {
+  async adjustBalance(adminUser: User, userId: string, amount: number, currency: 'CASH' | 'POINT', reason: string, expiresInDays?: number): Promise<Wallet> {
     return this.dataSource.transaction(async (manager) => {
       const wallet = await this.getWalletForUpdate(manager, userId);
       if (currency === 'CASH') {
@@ -109,6 +109,12 @@ export class WalletService {
         wallet.pointBalance += amount;
       }
       await manager.save(wallet);
+
+      let expiresAt: Date | undefined;
+      if (expiresInDays && currency === 'POINT' && amount > 0) {
+        expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+      }
 
       await this.transactionService.createTransaction(
         manager,
@@ -120,6 +126,7 @@ export class WalletService {
         `Admin adjustment: ${reason}`,
         null,
         adminUser,
+        expiresAt,
       );
       return wallet;
     });

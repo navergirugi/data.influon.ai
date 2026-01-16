@@ -40,6 +40,9 @@ export class Transaction {
   @Column({ nullable: true, comment: '관리자에 의한 조정인 경우 해당 관리자 ID (FK)' })
   adminUserId?: string;
 
+  @Column({ type: 'timestamp', nullable: true, comment: '포인트 만료 일시' })
+  expiresAt?: Date;
+
   @CreateDateColumn({ comment: '생성 일시' })
   createdAt: Date;
 }

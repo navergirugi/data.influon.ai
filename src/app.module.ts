@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
+import { TasksModule } from './tasks/tasks.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -51,6 +52,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     WalletModule,
     NotificationsModule,
     PaymentsModule,
+    TasksModule,
   ],
   controllers: [],
   providers: [

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { DataSource, In, Repository } from 'typeorm';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
-import { BusinessStatus, CampaignStatus, PointType, PointStatus, AdminActionType, UserRole, UserStatus, ApplicationStatus } from '../entities/enums';
+import { BusinessStatus, CampaignStatus, PointType, PointStatus, AdminActionType, UserRole, UserStatus, ApplicationStatus, TransactionType } from '../entities/enums';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { Campaign } from '../entities/campaign.entity';
 import { AdminAuditLog } from '../entities/admin-audit-log.entity';
@@ -29,6 +29,7 @@ import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
 import { UpdateCampaignByAdminDto } from './dto/update-campaign-by-admin.dto';
 import { CampaignApplication } from '../entities/campaign-application.entity';
 import { UpdateAdminDto } from './dto/update-admin.dto';
+import { Transaction } from '../entities/transaction.entity';
 
 @Injectable()
 export class AdminService {
@@ -83,6 +84,13 @@ export class AdminService {
       where: { role: In([UserRole.SUPER_ADMIN, UserRole.OPERATOR, UserRole.ADMIN]) },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async searchUsers(query: string): Promise<User[]> {
+    return this.userRepository.createQueryBuilder('user')
+      .where('user.email LIKE :query OR user.name LIKE :query OR user.nickname LIKE :query', { query: `%${query}%` })
+      .limit(10)
+      .getMany();
   }
 
   async deleteAdmin(id: string): Promise<void> {
@@ -373,13 +381,27 @@ export class AdminService {
     return this.walletService.adjustBalance(adminUser, targetUserId, amount, currency, reason);
   }
 
-  async getWithdrawalRequests(): Promise<PointTransaction[]> {
-    const pointTransactionRepository = this.dataSource.getRepository(PointTransaction);
-    return pointTransactionRepository.find({
-      where: { type: PointType.WITHDRAW, status: PointStatus.PROCESSING },
-      relations: ['user'],
-      order: { createdAt: 'ASC' },
-    });
+  async getWithdrawalRequests(page: number = 1, limit: number = 10, status?: PointStatus) {
+    const queryBuilder = this.dataSource.getRepository(PointTransaction).createQueryBuilder('pt')
+      .leftJoinAndSelect('pt.user', 'user')
+      .where('pt.type = :type', { type: PointType.WITHDRAW })
+      .orderBy('pt.createdAt', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (status) {
+      queryBuilder.andWhere('pt.status = :status', { status });
+    }
+
+    const [withdrawals, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      withdrawals,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async processWithdrawal(adminUser: User, transactionId: string, dto: ProcessWithdrawalDto): Promise<any> {
@@ -517,22 +539,41 @@ export class AdminService {
   }
 
   async getTransactions(page: number = 1, limit: number = 10, type?: PointType, status?: PointStatus, userId?: number) {
-    const queryBuilder = this.dataSource.getRepository(PointTransaction).createQueryBuilder('transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
+    const queryBuilder = this.dataSource.getRepository(Transaction).createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.wallet', 'wallet')
+      .leftJoinAndSelect('wallet.user', 'user')
       .orderBy('transaction.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
+
     if (type) {
       queryBuilder.andWhere('transaction.type = :type', { type });
     }
-    if (status) {
-      queryBuilder.andWhere('transaction.status = :status', { status });
-    }
+
+    // Transaction 엔티티에는 status가 없으므로 주석 처리
+    // if (status) {
+    //   queryBuilder.andWhere('transaction.status = :status', { status });
+    // }
+
     if (userId) {
-      queryBuilder.andWhere('transaction.userId = :userId', { userId });
+      queryBuilder.andWhere('user.id = :userId', { userId });
     }
+
     const [transactions, total] = await queryBuilder.getManyAndCount();
-    return { transactions, total, page, limit, totalPages: Math.ceil(total / limit) };
+
+    const mappedTransactions = transactions.map(tx => ({
+      ...tx,
+      user: tx.wallet.user,
+      status: 'COMPLETED',
+    }));
+
+    return {
+      transactions: mappedTransactions,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getCampaignApplications(page: number = 1, limit: number = 10, status?: ApplicationStatus, campaignId?: number) {
