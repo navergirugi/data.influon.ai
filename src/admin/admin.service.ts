@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { DataSource, In, Repository } from 'typeorm';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
-import { BusinessStatus, CampaignStatus, PointType, PointStatus, AdminActionType, UserRole, UserStatus } from '../entities/enums';
+import { BusinessStatus, CampaignStatus, PointType, PointStatus, AdminActionType, UserRole, UserStatus, ApplicationStatus } from '../entities/enums';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { Campaign } from '../entities/campaign.entity';
 import { AdminAuditLog } from '../entities/admin-audit-log.entity';
@@ -27,6 +27,8 @@ import { PointTransaction } from '../entities/point-transaction.entity';
 import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
 import { UpdateUserByAdminDto } from './dto/update-user-by-admin.dto';
 import { UpdateCampaignByAdminDto } from './dto/update-campaign-by-admin.dto';
+import { CampaignApplication } from '../entities/campaign-application.entity';
+import { UpdateAdminDto } from './dto/update-admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -47,23 +49,33 @@ export class AdminService {
   // Admin Management
   async createAdmin(dto: CreateAdminDto): Promise<User> {
     const { email, password, ...rest } = dto;
-
     const existingUser = await this.userRepository.findOne({ where: { email } });
     if (existingUser) {
       throw new ConflictException('Email already exists.');
     }
-
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
-
     const admin = this.userRepository.create({
       email,
       password: hashedPassword,
       ...rest,
       status: UserStatus.ACTIVE,
     });
-
     return this.userRepository.save(admin);
+  }
+
+  async updateAdmin(id: string, dto: UpdateAdminDto): Promise<User> {
+    const admin = await this.userRepository.findOne({ where: { id } });
+    if (!admin) {
+      throw new NotFoundException(`Admin with ID "${id}" not found`);
+    }
+    const { password, ...updateData } = dto;
+    if (password) {
+      const salt = await bcrypt.genSalt();
+      (updateData as any).password = await bcrypt.hash(password, salt);
+    }
+    await this.userRepository.update(id, updateData);
+    return this.userRepository.findOne({ where: { id } });
   }
 
   async getAdmins(): Promise<User[]> {
@@ -86,12 +98,9 @@ export class AdminService {
     if (!user) {
       throw new NotFoundException(`User with ID "${userId}" not found`);
     }
-
-    // 포인트가 0보다 많으면 삭제 불가
     if (user.wallet && (user.wallet.pointBalance > 0 || user.wallet.cashBalance > 0)) {
       throw new BadRequestException('Cannot delete user with a positive point balance.');
     }
-
     await this.userRepository.softDelete(userId);
   }
 
@@ -107,35 +116,28 @@ export class AdminService {
   // --- User Management (Admin CRUD) ---
   async createUserByAdmin(dto: CreateUserByAdminDto): Promise<User> {
     const { email, password, role, initialPoints, ...userData } = dto;
-
     const existingUser = await this.userRepository.findOne({ where: { email } });
     if (existingUser) {
       throw new ConflictException('Email already exists.');
     }
-
     const hashedPassword = password ? await bcrypt.hash(password, await bcrypt.genSalt()) : undefined;
-
     const user = this.userRepository.create({
       email,
       password: hashedPassword,
       role,
-      status: UserStatus.ACTIVE, // 기본 활성 상태
+      status: UserStatus.ACTIVE,
       ...userData,
     });
-
     const savedUser = await this.userRepository.save(user);
-
-    // 초기 포인트 지급 (WalletService 사용)
     if (initialPoints && initialPoints > 0) {
       await this.walletService.adjustBalance(
-        { id: 'admin-system', email: 'system@influon.ai', role: UserRole.ADMIN } as User, // 시스템 관리자
+        { id: 'admin-system', email: 'system@influon.ai', role: UserRole.ADMIN } as User,
         savedUser.id,
         initialPoints,
-        'POINT', // 통화 단위
+        'POINT',
         'Initial points for new user'
       );
     }
-
     return savedUser;
   }
 
@@ -144,38 +146,28 @@ export class AdminService {
     if (!user) {
       throw new NotFoundException(`User with ID "${userId}" not found`);
     }
-
     const { password, ...updateData }: any = dto;
-
-    // 비밀번호가 제공되면 해싱
     if (password) {
       updateData.password = await bcrypt.hash(password, await bcrypt.genSalt());
     }
-
-    // TypeORM의 update 메서드는 부분 업데이트에 유용
     await this.userRepository.update(userId, updateData);
-
-    // 업데이트된 사용자 정보 반환
     return this.userRepository.findOne({ where: { id: userId } });
   }
 
-  // User Management (Manual)
+  // User Management (Manual - Legacy)
   async createUserManual(dto: CreateUserManualDto, adminUser: User): Promise<User> {
     const user = await this.usersService.createUserManual(dto);
-    
     const log = new AdminAuditLog();
     log.adminUser = adminUser;
     log.targetUser = user;
     log.action = AdminActionType.CREATE_USER;
     log.reason = 'Manual creation by admin';
     await this.auditLogRepository.save(log);
-
     return user;
   }
 
   async updateUserInfoManual(userId: string, dto: UpdateUserInfoManualDto, adminUser: User): Promise<User> {
     const user = await this.usersService.updateUserInfoManual(userId, dto);
-
     const log = new AdminAuditLog();
     log.adminUser = adminUser;
     log.targetUser = user;
@@ -183,13 +175,11 @@ export class AdminService {
     log.reason = 'Manual update by admin';
     log.details = dto;
     await this.auditLogRepository.save(log);
-
     return user;
   }
 
   async updateUserStatusWithHistory(userId: string, status: UserStatus, reason: string, adminUser: User): Promise<User> {
     const user = await this.usersService.updateUserStatusWithHistory(userId, status, reason, adminUser);
-    
     const log = new AdminAuditLog();
     log.adminUser = adminUser;
     log.targetUser = user;
@@ -197,7 +187,6 @@ export class AdminService {
     log.reason = reason;
     log.details = { newStatus: status };
     await this.auditLogRepository.save(log);
-
     return user;
   }
 
@@ -207,13 +196,11 @@ export class AdminService {
     if (!targetUser) {
       throw new NotFoundException(`User with ID "${userId}" not found`);
     }
-
     const note = this.adminNoteRepository.create({
       targetUser,
       author: adminUser,
       content: dto.content,
     });
-
     return this.adminNoteRepository.save(note);
   }
 
@@ -228,24 +215,17 @@ export class AdminService {
   // Campaign Management (Admin)
   async createCampaignByAdmin(dto: CreateCampaignByAdminDto, adminUser: User): Promise<Campaign> {
     const { targetAdvertiserId, autoApprove, forceCreate, ...campaignData } = dto;
-
     const advertiser = await this.userRepository.findOne({ where: { id: targetAdvertiserId, role: UserRole.ADVERTISER } });
     if (!advertiser) {
       throw new NotFoundException(`Advertiser with ID "${targetAdvertiserId}" not found`);
     }
-
     if (advertiser.status !== UserStatus.ACTIVE || advertiser.businessStatus !== BusinessStatus.APPROVED) {
       throw new BadRequestException('Advertiser is not active or approved.');
     }
-
-    // Point Check & Deduction Logic (Simplified for now)
     if (!forceCreate && advertiser.points < 0) {
         throw new BadRequestException('Insufficient points.');
     }
-
     const campaign = await this.campaignsService.create(campaignData, advertiser, adminUser, autoApprove);
-
-    // Log action
     const log = new AdminAuditLog();
     log.adminUser = adminUser;
     log.targetUser = advertiser;
@@ -254,11 +234,9 @@ export class AdminService {
     log.reason = 'Campaign created by admin';
     log.details = { autoApprove, forceCreate };
     await this.auditLogRepository.save(log);
-
     return campaign;
   }
 
-  // ... existing methods ...
   async getPopularCampaigns(limit: number = 5) {
     const cacheKey = `popular_campaigns_${limit}`;
     const cached = await this.cacheManager.get(cacheKey);
@@ -344,7 +322,6 @@ export class AdminService {
     const cacheKey = 'dashboard_summary';
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
-
     const query = `
       SELECT
         (SELECT COUNT(*) FROM "user" WHERE role = '${UserRole.ADVERTISER}' AND "businessStatus" = '${BusinessStatus.PENDING}') as "pendingAdvertisers",
@@ -355,10 +332,8 @@ export class AdminService {
         (SELECT COUNT(*) FROM campaign WHERE status IN ('${CampaignStatus.RECRUITING}', '${CampaignStatus.IN_PROGRESS}', '${CampaignStatus.REVIEWING}')) as "activeCampaigns",
         (SELECT COALESCE(SUM(points), 0) FROM "user") as "totalPoints"
     `;
-
     const result = await this.dataSource.query(query);
     const data = result[0];
-
     const response = {
       pendingCounts: {
         advertisers: parseInt(data.pendingAdvertisers),
@@ -373,8 +348,7 @@ export class AdminService {
         totalPointsInSystem: parseInt(data.totalPoints),
       },
     };
-
-    await this.cacheManager.set(cacheKey, response, 300000); // 5 minutes
+    await this.cacheManager.set(cacheKey, response, 300000);
     return response;
   }
 
@@ -400,74 +374,52 @@ export class AdminService {
   }
 
   async getWithdrawalRequests(): Promise<PointTransaction[]> {
-    // This should be replaced by a method that queries the new Transaction entity
     const pointTransactionRepository = this.dataSource.getRepository(PointTransaction);
     return pointTransactionRepository.find({
-      where: {
-        type: PointType.WITHDRAW,
-        status: PointStatus.PROCESSING,
-      },
+      where: { type: PointType.WITHDRAW, status: PointStatus.PROCESSING },
       relations: ['user'],
       order: { createdAt: 'ASC' },
     });
   }
 
   async processWithdrawal(adminUser: User, transactionId: string, dto: ProcessWithdrawalDto): Promise<any> {
-    // This logic needs to be updated to use the new Wallet and Transaction services
-    // For now, keeping the old logic to avoid breaking changes, but it should be refactored
     const { status, reason } = dto;
-
     if (status === PointStatus.CANCELED && !reason) {
       throw new BadRequestException('Reason is required for cancellation.');
     }
-
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-
     try {
       const pointTransactionRepository = queryRunner.manager.getRepository(PointTransaction);
       const transaction = await pointTransactionRepository.findOne({
         where: { id: transactionId, type: PointType.WITHDRAW, status: PointStatus.PROCESSING },
         relations: ['user'],
       });
-
       if (!transaction) {
         throw new NotFoundException(`Withdrawal request with ID "${transactionId}" not found or already processed.`);
       }
-
       const targetUser = transaction.user;
       transaction.status = status;
-
       const log = new AdminAuditLog();
       log.adminUser = adminUser;
       log.targetUser = targetUser;
       log.reason = reason || 'Withdrawal processed';
       log.details = { transactionId, newStatus: status };
-
       if (status === PointStatus.COMPLETED) {
         if (targetUser.points < transaction.amount) {
           throw new BadRequestException('Insufficient points for withdrawal.');
         }
-        
         const { tax, actualAmount } = calculateWithdrawalAmount(transaction.amount);
-        log.details = { 
-          ...log.details,
-          withdrawalAmount: transaction.amount,
-          tax,
-          actualAmount 
-        };
-
+        log.details = { ...log.details, withdrawalAmount: transaction.amount, tax, actualAmount };
         targetUser.points -= transaction.amount;
         log.action = AdminActionType.APPROVE_WITHDRAWAL;
         await queryRunner.manager.save(targetUser);
-      } else { // CANCELED
+      } else {
         log.action = AdminActionType.REJECT_WITHDRAWAL;
       }
-
       await queryRunner.manager.save(transaction);
       await queryRunner.manager.save(log);
-
       await queryRunner.commitTransaction();
       return transaction;
     } catch (err) {
@@ -478,12 +430,7 @@ export class AdminService {
     }
   }
 
-  async getInfluencers(
-    page: number = 1,
-    limit: number = 10,
-    search?: string,
-    status?: string,
-  ) {
+  async getInfluencers(page: number = 1, limit: number = 10, search?: string, status?: string) {
     const queryBuilder = this.userRepository.createQueryBuilder('user')
       .leftJoinAndSelect('user.socialConnections', 'social')
       .loadRelationCountAndMap('user.penaltyCount', 'user.penalties')
@@ -491,20 +438,13 @@ export class AdminService {
       .orderBy('user.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
-
     if (search) {
-      queryBuilder.andWhere(
-        '(user.nickname LIKE :search OR user.email LIKE :search)',
-        { search: `%${search}%` },
-      );
+      queryBuilder.andWhere('(user.nickname LIKE :search OR user.email LIKE :search)', { search: `%${search}%` });
     }
-
     if (status) {
       queryBuilder.andWhere('user.status = :status', { status });
     }
-
     const [users, total] = await queryBuilder.getManyAndCount();
-
     const influencers = users.map(user => ({
       id: user.id,
       nickname: user.nickname,
@@ -517,98 +457,52 @@ export class AdminService {
       status: user.status,
       createdAt: user.createdAt,
     }));
-
-    return {
-      influencers,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return { influencers, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async getAdvertisers(
-    page: number = 1,
-    limit: number = 10,
-    search?: string,
-    status?: string, // UserStatus | BusinessStatus
-  ) {
+  async getAdvertisers(page: number = 1, limit: number = 10, search?: string, status?: string) {
     const queryBuilder = this.userRepository.createQueryBuilder('user')
       .where('user.role = :role', { role: UserRole.ADVERTISER })
       .orderBy('user.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
-
     if (search) {
-      queryBuilder.andWhere(
-        '(user.businessName LIKE :search OR user.email LIKE :search)',
-        { search: `%${search}%` },
-      );
+      queryBuilder.andWhere('(user.businessName LIKE :search OR user.email LIKE :search)', { search: `%${search}%` });
     }
-
     if (status) {
-      // BusinessStatus에 해당하는 값인 경우 businessStatus 컬럼과 비교
       if (Object.values(BusinessStatus).includes(status as any)) {
         queryBuilder.andWhere('user.businessStatus = :status', { status });
-      } 
-      // UserStatus에 해당하는 값인 경우 status 컬럼과 비교
-      else {
-        // BLACKLIST -> BLACKLISTED 매핑 처리 (프론트엔드 호환)
+      } else {
         const userStatus = status === 'BLACKLIST' ? UserStatus.BLACKLISTED : status;
         queryBuilder.andWhere('user.status = :status', { status: userStatus });
       }
     }
-
     const [advertisers, total] = await queryBuilder.getManyAndCount();
-
-    return {
-      advertisers,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return { advertisers, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async getCampaigns(
-    page: number = 1,
-    limit: number = 10,
-    search?: string,
-    status?: CampaignStatus,
-  ) {
+  async getCampaigns(page: number = 1, limit: number = 10, search?: string, status?: CampaignStatus) {
     const queryBuilder = this.dataSource.getRepository(Campaign).createQueryBuilder('campaign')
       .leftJoinAndSelect('campaign.advertiser', 'advertiser')
       .orderBy('campaign.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
-
     if (search) {
       queryBuilder.andWhere('campaign.title LIKE :search', { search: `%${search}%` });
     }
-
     if (status) {
       queryBuilder.andWhere('campaign.status = :status', { status });
     }
-
     const [campaigns, total] = await queryBuilder.getManyAndCount();
-
-    return {
-      campaigns,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return { campaigns, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async deleteCampaign(id: number): Promise<void> {
     const campaignRepository = this.dataSource.getRepository(Campaign);
     const campaign = await campaignRepository.findOne({ where: { id } });
-    
     if (!campaign) {
       throw new NotFoundException(`Campaign with ID "${id}" not found`);
     }
-
     await campaignRepository.softDelete(id);
   }
 
@@ -618,40 +512,53 @@ export class AdminService {
     if (!campaign) {
       throw new NotFoundException(`Campaign with ID "${id}" not found`);
     }
-
-    // 업데이트 로직 (간단하게 병합)
     Object.assign(campaign, dto);
     return campaignRepository.save(campaign);
   }
 
-  async getTransactions(
-    page: number = 1,
-    limit: number = 10,
-    type?: PointType,
-    status?: PointStatus,
-  ) {
+  async getTransactions(page: number = 1, limit: number = 10, type?: PointType, status?: PointStatus, userId?: number) {
     const queryBuilder = this.dataSource.getRepository(PointTransaction).createQueryBuilder('transaction')
       .leftJoinAndSelect('transaction.user', 'user')
       .orderBy('transaction.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
-
     if (type) {
       queryBuilder.andWhere('transaction.type = :type', { type });
     }
-
     if (status) {
       queryBuilder.andWhere('transaction.status = :status', { status });
     }
-
+    if (userId) {
+      queryBuilder.andWhere('transaction.userId = :userId', { userId });
+    }
     const [transactions, total] = await queryBuilder.getManyAndCount();
+    return { transactions, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
 
-    return {
-      transactions,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+  async getCampaignApplications(page: number = 1, limit: number = 10, status?: ApplicationStatus, campaignId?: number) {
+    const queryBuilder = this.dataSource.getRepository(CampaignApplication).createQueryBuilder('application')
+      .leftJoinAndSelect('application.user', 'user')
+      .leftJoinAndSelect('application.campaign', 'campaign')
+      .orderBy('application.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+    if (status) {
+      queryBuilder.andWhere('application.status = :status', { status });
+    }
+    if (campaignId) {
+      queryBuilder.andWhere('application.campaignId = :campaignId', { campaignId });
+    }
+    const [applications, total] = await queryBuilder.getManyAndCount();
+    return { applications, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async updateApplicationStatus(id: number, status: ApplicationStatus): Promise<CampaignApplication> {
+    const applicationRepository = this.dataSource.getRepository(CampaignApplication);
+    const application = await applicationRepository.findOne({ where: { id } });
+    if (!application) {
+      throw new NotFoundException(`Application with ID "${id}" not found`);
+    }
+    application.status = status;
+    return applicationRepository.save(application);
   }
 }

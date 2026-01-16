@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -41,7 +42,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => typeOrmConfig(configService),
     }),
-    ScheduleModule.forRoot(), // 스케줄러 모듈 초기화
+    ScheduleModule.forRoot(),
     CampaignsModule,
     MyPageModule,
     AuthModule,
@@ -49,6 +50,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     UsersModule,
     WalletModule,
     NotificationsModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [

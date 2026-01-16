@@ -2,7 +2,7 @@ import { Controller, Patch, Param, Body, UseGuards, ParseUUIDPipe, Get, ParseInt
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { UserRole, UserStatus, CampaignStatus, PointType, PointStatus } from '../entities/enums';
+import { UserRole, UserStatus, CampaignStatus, PointType, PointStatus, ApplicationStatus } from '../entities/enums';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { AdminAuthGuard } from './auth/admin-auth.guard';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -11,6 +11,7 @@ import { ProcessWithdrawalDto } from './dto/process-withdrawal.dto';
 import { User } from '../entities/user.entity';
 import { AdjustPointsDto } from './dto/adjust-points.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateAdminDto } from './dto/update-admin.dto';
 import { CreateUserManualDto } from './dto/create-user-manual.dto';
 import { UpdateUserInfoManualDto } from './dto/update-user-info-manual.dto';
 import { CreateAdminNoteDto } from './dto/create-admin-note.dto';
@@ -40,6 +41,12 @@ export class AdminController {
   @Roles(UserRole.SUPER_ADMIN)
   getAdmins() {
     return this.adminService.getAdmins();
+  }
+
+  @Patch('admins/:id')
+  @Roles(UserRole.SUPER_ADMIN)
+  updateAdmin(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAdminDto) {
+    return this.adminService.updateAdmin(id, dto);
   }
 
   @Delete('admins/:id')
@@ -119,17 +126,15 @@ export class AdminController {
     return this.adminService.getDashboardSummary();
   }
 
-  // 프론트엔드 호환용 대시보드 통계 API
   @Get('dashboard/stats')
   async getDashboardStats() {
     const summary = await this.adminService.getDashboardSummary() as any;
-    // 프론트엔드 DashboardStats 인터페이스에 맞게 변환
     return {
       pendingAdvertisers: summary.pendingCounts.advertisers,
       pendingCampaigns: summary.pendingCounts.campaigns,
       pendingWithdrawals: summary.pendingCounts.withdrawals,
-      totalRevenue: summary.cumulativeMetrics.totalPointsInSystem, // 일단 포인트 총액을 매출로 사용
-      dailyActiveUsers: 0, // DAU는 아직 구현되지 않음
+      totalRevenue: summary.cumulativeMetrics.totalPointsInSystem,
+      dailyActiveUsers: 0,
     };
   }
 
@@ -148,6 +153,7 @@ export class AdminController {
     return this.adminService.getTopInfluencers();
   }
 
+  // --- User & Advertiser Lists ---
   @Get('influencers')
   async getInfluencers(
     @Query('page') page: number = 1,
@@ -155,12 +161,9 @@ export class AdminController {
     @Query('search') search?: string,
     @Query('status') status?: string,
   ) {
-    // Query 파라미터가 문자열로 들어올 수 있으므로 형변환
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
-    
-    const result = await this.adminService.getInfluencers(pageNum, limitNum, search, status);
-    return result;
+    return this.adminService.getInfluencers(pageNum, limitNum, search, status);
   }
 
   @Get('advertisers')
@@ -172,12 +175,10 @@ export class AdminController {
   ) {
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
-    
-    const result = await this.adminService.getAdvertisers(pageNum, limitNum, search, status);
-    return result;
+    return this.adminService.getAdvertisers(pageNum, limitNum, search, status);
   }
 
-  // --- Points & Withdrawals ---
+  // --- Points & Transactions ---
   @Post('users/:id/balance/adjust')
   adjustBalance(
     @CurrentAdmin() adminUser: User,
@@ -193,12 +194,12 @@ export class AdminController {
     @Query('limit') limit: number = 10,
     @Query('type') type?: PointType,
     @Query('status') status?: PointStatus,
+    @Query('userId') userId?: number,
   ) {
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
-    
-    const result = await this.adminService.getTransactions(pageNum, limitNum, type, status);
-    return result;
+    const userIdNum = userId ? Number(userId) : undefined;
+    return this.adminService.getTransactions(pageNum, limitNum, type, status, userIdNum);
   }
 
   @Get('points/withdrawals')
@@ -225,9 +226,7 @@ export class AdminController {
   ) {
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 10;
-    
-    const result = await this.adminService.getCampaigns(pageNum, limitNum, search, status);
-    return result;
+    return this.adminService.getCampaigns(pageNum, limitNum, search, status);
   }
 
   @Delete('campaigns/:id')
@@ -262,6 +261,27 @@ export class AdminController {
     @Body() updateDto: UpdateCampaignStatusDto,
   ) {
     return this.adminService.updateCampaignStatus(id, updateDto);
+  }
+
+  @Get('campaign-applications')
+  getCampaignApplications(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('status') status?: ApplicationStatus,
+    @Query('campaignId') campaignId?: number,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    const campaignIdNum = campaignId ? Number(campaignId) : undefined;
+    return this.adminService.getCampaignApplications(pageNum, limitNum, status, campaignIdNum);
+  }
+
+  @Patch('campaign-applications/:id/status')
+  updateApplicationStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('status') status: ApplicationStatus,
+  ) {
+    return this.adminService.updateApplicationStatus(id, status);
   }
 
   // --- Legacy User Management ---
