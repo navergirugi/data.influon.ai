@@ -8,7 +8,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 5000;
+  const port = configService.get<number>('PORT') || 9000;
 
   // [디버깅용] 모든 요청의 헤더 로그 출력
   app.use((req, res, next) => {
